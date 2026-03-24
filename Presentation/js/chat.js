@@ -1,101 +1,209 @@
 // ============================================================
 //  DatosParaTodos — Chat Widget
-//  Maneja la comunicación con los dos agentes del backend
-//  Uso: incluir en index.html y en secciones/*.html
+//  Llama directamente a la API REST de Gemini desde el frontend.
+//  No requiere backend.
 // ============================================================
 
-const CHAT_API = 'http://localhost:8000/chat';
+const GEMINI_REST_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const ChatWidget = (() => {
-    let sessionId = null;
     let isOpen = false;
     let isLoading = false;
+    let history = [];     // [{role:'user'|'model', parts:[{text}]}]
+    let systemPrompt = '';
+    let _apiKey = '';
 
-    // ── INIT ──────────────────────────────────────────────────
+    // ── PROMPTS ─────────────────────────────────────────────
+    const NAVIGATION_PROMPT = `Eres el agente de navegación de DatosParaTodos, una plataforma de democratización de datos públicos del municipio de Medellín. Tu rol es recibir al usuario, entender su necesidad y orientarlo hacia la sección correcta.
+
+Las secciones disponibles son: economía, educación, medio ambiente, movilidad, salud, seguridad, servicios, trámites.
+
+Reglas:
+1. Saluda y pregunta en qué puedes ayudar.
+2. Identifica la sección correcta y explica por qué.
+3. Si no encaja claramente, pide más detalle.
+4. Responde siempre en español, tono cercano y claro.`;
+
+    const SPECIALIST_PROMPT = (categoria, conclusiones) => `Eres un agente especialista en ${categoria} para DatosParaTodos, una plataforma de datos públicos de Medellín.
+
+Contexto del análisis de datos:
+${conclusiones}
+
+Reglas:
+1. Eres experto en ${categoria} en el contexto de Medellín.
+2. Responde basándote en el contexto de análisis proporcionado.
+3. Si una pregunta va más allá del contexto, indícalo claramente.
+4. Cita datos concretos del contexto cuando sea posible.
+5. Responde en español, tono profesional pero accesible.`;
+
+    // ── INIT ────────────────────────────────────────────────
     function init({ agentType = 'navigation', categoria = '', conclusiones = '', containerId = 'chat-widget-root' } = {}) {
+        const isInline = agentType === 'specialist';
+        isOpen = isInline;
+        history = [];
+
+        if (agentType === 'specialist') {
+            systemPrompt = SPECIALIST_PROMPT(categoria, conclusiones);
+        } else {
+            systemPrompt = NAVIGATION_PROMPT;
+        }
+
         _injectStyles();
         _buildDOM(containerId, agentType);
-        _startSession(agentType, categoria, conclusiones);
+
+        // Intentar obtener la key almacenada
+        _apiKey = localStorage.getItem('gemini_api_key') || '';
+        const keyInput = document.getElementById('cwApiKey');
+        if (keyInput && _apiKey) keyInput.value = _apiKey;
+
+        // Auto-greet si ya hay key
+        if (_apiKey) {
+            _sendToGemini('Preséntate brevemente al usuario.');
+        } else {
+            _appendMessage('agent', '🔑 Para comenzar, ingresa tu API Key de Google Gemini arriba. Es gratuita y la puedes obtener en [aistudio.google.com](https://aistudio.google.com/app/apikey).');
+            _setInputEnabled(false);
+        }
 
         window.addEventListener('beforeunload', destroy);
     }
 
-    // ── SESSION ───────────────────────────────────────────────
-    async function _startSession(agentType, categoria, conclusiones) {
+    // ── GEMINI REST API ─────────────────────────────────────
+    async function _sendToGemini(userText) {
+        if (!_apiKey) {
+            _appendMessage('agent', '⚠️ Necesitas ingresar tu API Key de Gemini para poder chatear.');
+            return;
+        }
+
         try {
-            const body = { agent_type: agentType };
-            if (agentType === 'specialist') {
-                body.categoria = categoria;
-                body.conclusiones = conclusiones || 'Análisis pendiente.';
+            // Build contents: system instruction + history + new message
+            const contents = [];
+
+            // Add history
+            for (const turn of history) {
+                contents.push(turn);
             }
 
-            const res = await fetch(`${CHAT_API}/session`, {
+            // Add user message
+            contents.push({ role: 'user', parts: [{ text: userText }] });
+
+            const body = {
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: contents
+            };
+
+            const res = await fetch(`${GEMINI_REST_URL}?key=${_apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify(body)
             });
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                const msg = errorData?.error?.message || `HTTP ${res.status}`;
+                if (res.status === 429) {
+                    throw new Error('⏳ Límite de cuota alcanzado. Espera unos segundos e intenta de nuevo.');
+                }
+                if (res.status === 400 && msg.includes('API key')) {
+                    throw new Error('🔑 API Key inválida. Verifica que sea correcta.');
+                }
+                throw new Error(msg);
+            }
+
             const data = await res.json();
-            sessionId = data.session_id;
-            _appendMessage('agent', data.reply);
+            const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta.';
+
+            // Store in history
+            history.push({ role: 'user', parts: [{ text: userText }] });
+            history.push({ role: 'model', parts: [{ text: reply }] });
+
+            return reply;
         } catch (e) {
-            _appendMessage('agent', '⚠️ No se pudo conectar con el asistente. Verifica que el servidor esté activo.');
-            console.error('[ChatWidget] Session error:', e);
+            throw e;
         }
     }
 
     async function sendMessage(text) {
-        if (!text.trim() || isLoading || !sessionId) return;
+        if (!text.trim() || isLoading) return;
         isLoading = true;
         _appendMessage('user', text);
         _setInputEnabled(false);
         _showTyping();
 
         try {
-            const res = await fetch(`${CHAT_API}/message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: sessionId, message: text }),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            const reply = await _sendToGemini(text);
             _hideTyping();
-            _appendMessage('agent', data.reply);
+            _appendMessage('agent', reply);
         } catch (e) {
             _hideTyping();
-            _appendMessage('agent', '⚠️ Error al enviar el mensaje. Intenta de nuevo.');
-            console.error('[ChatWidget] Message error:', e);
+            _appendMessage('agent', `⚠️ ${e.message}`);
+            console.error('[ChatWidget] Error:', e);
         } finally {
             isLoading = false;
             _setInputEnabled(true);
         }
     }
 
-    async function destroy() {
-        if (!sessionId) return;
-        try {
-            await fetch(`${CHAT_API}/session/${sessionId}`, { method: 'DELETE', keepalive: true });
-        } catch (_) { }
-        sessionId = null;
+    function destroy() {
+        history = [];
+        const root = document.getElementById('cwPanel');
+        if (root) root.innerHTML = '';
     }
 
-    // ── DOM ───────────────────────────────────────────────────
+    // ── API KEY ─────────────────────────────────────────────
+    function _saveApiKey() {
+        const input = document.getElementById('cwApiKey');
+        if (!input) return;
+        const key = input.value.trim();
+        if (!key) return;
+        _apiKey = key;
+        localStorage.setItem('gemini_api_key', key);
+        _setInputEnabled(true);
+        // Clear messages and send greeting
+        const msgs = document.getElementById('cwMessages');
+        if (msgs) msgs.innerHTML = '';
+        history = [];
+        _showTyping();
+        _sendToGemini('Preséntate brevemente al usuario.').then(reply => {
+            _hideTyping();
+            _appendMessage('agent', reply);
+        }).catch(e => {
+            _hideTyping();
+            _appendMessage('agent', `⚠️ ${e.message}`);
+        });
+    }
+
+    // ── DOM ─────────────────────────────────────────────────
     function _buildDOM(containerId, agentType) {
         const isNav = agentType === 'navigation';
+        const isInline = agentType === 'specialist';
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        container.innerHTML = `
-      <!-- Trigger button -->
+        const triggerHtml = isInline ? '' : `
       <button class="cw-trigger" id="cwTrigger" onclick="ChatWidget.toggle()" aria-label="Abrir asistente">
         <span class="cw-trigger-icon">🤖</span>
         <span class="cw-trigger-label">${isNav ? 'Asistente' : 'Preguntar al experto'}</span>
         <span class="cw-trigger-dot"></span>
-      </button>
+      </button>`;
 
-      <!-- Chat panel -->
-      <div class="cw-panel" id="cwPanel" role="dialog" aria-modal="true" aria-label="Chat con asistente">
+        const panelClasses = `cw-panel ${isInline ? 'cw-inline cw-open' : ''}`;
+
+        const apiKeyBar = `
+      <div class="cw-apikey-bar">
+        <span class="cw-apikey-icon">🔑</span>
+        <input type="password" class="cw-apikey-input" id="cwApiKey"
+          placeholder="Pega tu API Key de Gemini aquí"
+          onkeydown="if(event.key==='Enter'){ChatWidget._saveApiKey();}">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="cw-apikey-link">Obtener ↗</a>
+        <button class="cw-apikey-btn" onclick="ChatWidget._saveApiKey()">Conectar</button>
+      </div>`;
+
+        const closeHtml = isInline ? '' : `
+          <button class="cw-close" onclick="ChatWidget.toggle()" aria-label="Cerrar chat">✕</button>`;
+
+        container.innerHTML = `
+      ${triggerHtml}
+      <div class="${panelClasses}" id="cwPanel" role="dialog" aria-label="Chat con asistente">
         <div class="cw-header">
           <div class="cw-header-info">
             <div class="cw-avatar">🤖</div>
@@ -104,22 +212,21 @@ const ChatWidget = (() => {
               <div class="cw-agent-status"><span class="cw-status-dot"></span> En línea</div>
             </div>
           </div>
-          <button class="cw-close" onclick="ChatWidget.toggle()" aria-label="Cerrar chat">✕</button>
+          ${closeHtml}
         </div>
+
+        ${apiKeyBar}
 
         <div class="cw-messages" id="cwMessages"></div>
 
         <div class="cw-footer">
           <div class="cw-input-row">
-            <textarea
-              class="cw-input"
-              id="cwInput"
+            <textarea class="cw-input" id="cwInput"
               placeholder="${isNav ? '¿Qué información buscas?' : '¿Qué quieres saber sobre estos datos?'}"
               rows="1"
               onkeydown="ChatWidget._handleKey(event)"
               oninput="ChatWidget._autoResize(this)"
-              disabled
-            ></textarea>
+              disabled></textarea>
             <button class="cw-send" id="cwSend" onclick="ChatWidget._submitInput()" disabled aria-label="Enviar">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -137,7 +244,9 @@ const ChatWidget = (() => {
         isOpen = !isOpen;
         const panel = document.getElementById('cwPanel');
         const trigger = document.getElementById('cwTrigger');
-        if (panel) panel.classList.toggle('cw-open', isOpen);
+        if (panel && !panel.classList.contains('cw-inline')) {
+            panel.classList.toggle('cw-open', isOpen);
+        }
         if (trigger) trigger.classList.toggle('cw-active', isOpen);
         if (isOpen) {
             setTimeout(() => {
@@ -151,7 +260,6 @@ const ChatWidget = (() => {
     function _appendMessage(role, text) {
         const container = document.getElementById('cwMessages');
         if (!container) return;
-
         const isAgent = role === 'agent';
         const div = document.createElement('div');
         div.className = `cw-message cw-message-${role}`;
@@ -179,9 +287,7 @@ const ChatWidget = (() => {
         _scrollToBottom();
     }
 
-    function _hideTyping() {
-        document.getElementById('cwTyping')?.remove();
-    }
+    function _hideTyping() { document.getElementById('cwTyping')?.remove(); }
 
     function _setInputEnabled(enabled) {
         const input = document.getElementById('cwInput');
@@ -201,6 +307,7 @@ const ChatWidget = (() => {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#3b82f6">$1</a>')
             .replace(/\n/g, '<br>');
     }
 
@@ -226,7 +333,7 @@ const ChatWidget = (() => {
         el.style.height = Math.min(el.scrollHeight, 120) + 'px';
     }
 
-    // ── STYLES ────────────────────────────────────────────────
+    // ── STYLES ──────────────────────────────────────────────
     function _injectStyles() {
         if (document.getElementById('cw-styles')) return;
         const style = document.createElement('style');
@@ -235,40 +342,22 @@ const ChatWidget = (() => {
       /* ── TRIGGER BUTTON ── */
       .cw-trigger {
         position: fixed;
-        bottom: 28px;
-        right: 28px;
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        bottom: 28px; right: 28px; z-index: 1000;
+        display: flex; align-items: center; gap: 10px;
         padding: 12px 20px 12px 14px;
-        background: #0d2240;
-        color: white;
-        border: none;
-        border-radius: 50px;
-        font-size: 14px;
-        font-weight: 600;
-        font-family: 'DM Sans', sans-serif;
-        cursor: pointer;
+        background: #0d2240; color: white; border: none;
+        border-radius: 50px; font-size: 14px; font-weight: 600;
+        font-family: 'DM Sans', sans-serif; cursor: pointer;
         box-shadow: 0 4px 24px rgba(13,34,64,0.45);
         transition: all 0.25s cubic-bezier(.175,.885,.32,1.275);
       }
-      .cw-trigger:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 32px rgba(13,34,64,0.5);
-      }
-      .cw-trigger.cw-active {
-        background: #1f2937;
-      }
+      .cw-trigger:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(13,34,64,0.5); }
+      .cw-trigger.cw-active { background: #1f2937; }
       .cw-trigger-icon { font-size: 20px; }
       .cw-trigger-dot {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 9px;
-        height: 9px;
-        background: #4ade80;
-        border-radius: 50%;
+        position: absolute; top: 8px; right: 8px;
+        width: 9px; height: 9px;
+        background: #4ade80; border-radius: 50%;
         border: 2px solid #0d2240;
         animation: cw-pulse 2s infinite;
       }
@@ -276,48 +365,74 @@ const ChatWidget = (() => {
 
       /* ── PANEL ── */
       .cw-panel {
-        position: fixed;
-        bottom: 96px;
-        right: 28px;
-        z-index: 999;
-        width: 380px;
-        max-height: 560px;
-        background: white;
-        border-radius: 20px;
+        position: fixed; bottom: 96px; right: 28px; z-index: 999;
+        width: 380px; max-height: 560px;
+        background: white; border-radius: 20px;
         box-shadow: 0 20px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
+        display: flex; flex-direction: column; overflow: hidden;
         transform: scale(0.92) translateY(16px);
         transform-origin: bottom right;
-        opacity: 0;
-        pointer-events: none;
+        opacity: 0; pointer-events: none;
         transition: all 0.28s cubic-bezier(.175,.885,.32,1.275);
         border: 1px solid rgba(0,0,0,0.06);
       }
       .cw-panel.cw-open {
         transform: scale(1) translateY(0);
-        opacity: 1;
-        pointer-events: all;
+        opacity: 1; pointer-events: all;
       }
+
+      /* ── INLINE MODE ── */
+      .cw-panel.cw-inline {
+        position: relative; bottom: auto; right: auto;
+        width: 100%; max-height: none; height: 520px;
+        transform: none; opacity: 1; pointer-events: all;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #e5e7eb; z-index: 10;
+        margin-top: 10px; border-radius: 12px;
+      }
+
+      /* ── API KEY BAR ── */
+      .cw-apikey-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px;
+        background: #f0f9ff;
+        border-bottom: 1px solid #e0f2fe;
+        flex-shrink: 0;
+      }
+      .cw-apikey-icon { font-size: 14px; }
+      .cw-apikey-input {
+        flex: 1; padding: 6px 10px;
+        border: 1px solid #cbd5e1; border-radius: 8px;
+        font-size: 12px; font-family: 'DM Sans', sans-serif;
+        color: #1e293b; background: white; outline: none;
+      }
+      .cw-apikey-input:focus { border-color: #3b82f6; }
+      .cw-apikey-link {
+        font-size: 11px; color: #3b82f6;
+        text-decoration: none; white-space: nowrap;
+      }
+      .cw-apikey-link:hover { text-decoration: underline; }
+      .cw-apikey-btn {
+        padding: 5px 12px; background: #0d2240; color: white;
+        border: none; border-radius: 8px; font-size: 12px;
+        font-weight: 600; cursor: pointer;
+        font-family: 'DM Sans', sans-serif;
+        transition: background 0.2s;
+      }
+      .cw-apikey-btn:hover { background: #1a3a6b; }
 
       /* ── HEADER ── */
       .cw-header {
-        padding: 16px 20px;
-        background: #0d2240;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        padding: 16px 20px; background: #0d2240;
+        display: flex; align-items: center; justify-content: space-between;
         flex-shrink: 0;
       }
       .cw-header-info { display: flex; align-items: center; gap: 12px; }
       .cw-avatar {
         width: 38px; height: 38px;
-        background: rgba(255,255,255,0.12);
-        border-radius: 50%;
+        background: rgba(255,255,255,0.12); border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-size: 18px;
-        flex-shrink: 0;
+        font-size: 18px; flex-shrink: 0;
       }
       .cw-agent-name {
         font-size: 14px; font-weight: 600; color: white;
@@ -333,11 +448,10 @@ const ChatWidget = (() => {
         animation: cw-pulse 2s infinite;
       }
       .cw-close {
-        background: rgba(255,255,255,0.1);
-        border: none; color: rgba(255,255,255,0.7);
-        width: 30px; height: 30px;
-        border-radius: 50%; cursor: pointer;
-        font-size: 13px;
+        background: rgba(255,255,255,0.1); border: none;
+        color: rgba(255,255,255,0.7);
+        width: 30px; height: 30px; border-radius: 50%;
+        cursor: pointer; font-size: 13px;
         display: flex; align-items: center; justify-content: center;
         transition: background 0.2s;
       }
@@ -345,24 +459,15 @@ const ChatWidget = (() => {
 
       /* ── MESSAGES ── */
       .cw-messages {
-        flex: 1;
-        overflow-y: auto;
+        flex: 1; overflow-y: auto;
         padding: 20px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        scroll-behavior: smooth;
-        background: #f9fafb;
+        display: flex; flex-direction: column; gap: 14px;
+        scroll-behavior: smooth; background: #f9fafb;
       }
       .cw-messages::-webkit-scrollbar { width: 4px; }
       .cw-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
 
-      .cw-message {
-        display: flex;
-        align-items: flex-end;
-        gap: 8px;
-        animation: cw-fadeUp 0.25s ease;
-      }
+      .cw-message { display: flex; align-items: flex-end; gap: 8px; animation: cw-fadeUp 0.25s ease; }
       .cw-message-user { flex-direction: row-reverse; }
       .cw-msg-avatar {
         width: 28px; height: 28px;
@@ -370,40 +475,27 @@ const ChatWidget = (() => {
         display: flex; align-items: center; justify-content: center;
         font-size: 13px; flex-shrink: 0;
       }
-
       .cw-bubble {
-        max-width: 80%;
-        padding: 10px 14px;
-        border-radius: 16px;
-        font-size: 13.5px;
-        line-height: 1.55;
-        font-family: 'DM Sans', sans-serif;
+        max-width: 80%; padding: 10px 14px;
+        border-radius: 16px; font-size: 13.5px;
+        line-height: 1.55; font-family: 'DM Sans', sans-serif;
       }
       .cw-message-agent .cw-bubble {
-        background: white;
-        color: #1f2937;
+        background: white; color: #1f2937;
         border-radius: 4px 16px 16px 16px;
         box-shadow: 0 1px 4px rgba(0,0,0,0.07);
         border: 1px solid #e5e7eb;
       }
       .cw-message-user .cw-bubble {
-        background: #0d2240;
-        color: white;
+        background: #0d2240; color: white;
         border-radius: 16px 4px 16px 16px;
       }
 
-      /* ── TYPING INDICATOR ── */
-      .cw-typing {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        padding: 12px 16px;
-      }
+      /* ── TYPING ── */
+      .cw-typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; }
       .cw-typing span {
-        width: 7px; height: 7px;
-        background: #9ca3af;
-        border-radius: 50%;
-        animation: cw-bounce 1.2s infinite ease-in-out;
+        width: 7px; height: 7px; background: #9ca3af;
+        border-radius: 50%; animation: cw-bounce 1.2s infinite ease-in-out;
       }
       .cw-typing span:nth-child(2) { animation-delay: 0.15s; }
       .cw-typing span:nth-child(3) { animation-delay: 0.3s; }
@@ -412,61 +504,39 @@ const ChatWidget = (() => {
       .cw-footer {
         padding: 12px 14px 14px;
         border-top: 1px solid #f3f4f6;
-        background: white;
-        flex-shrink: 0;
+        background: white; flex-shrink: 0;
       }
-      .cw-input-row {
-        display: flex;
-        gap: 8px;
-        align-items: flex-end;
-      }
+      .cw-input-row { display: flex; gap: 8px; align-items: flex-end; }
       .cw-input {
-        flex: 1;
-        padding: 10px 14px;
-        border: 1.5px solid #e5e7eb;
-        border-radius: 12px;
-        font-size: 13.5px;
-        font-family: 'DM Sans', sans-serif;
-        color: #1f2937;
-        resize: none;
-        outline: none;
-        line-height: 1.5;
-        transition: border-color 0.2s;
-        max-height: 120px;
-        overflow-y: auto;
+        flex: 1; padding: 10px 14px;
+        border: 1.5px solid #e5e7eb; border-radius: 12px;
+        font-size: 13.5px; font-family: 'DM Sans', sans-serif;
+        color: #1f2937; resize: none; outline: none;
+        line-height: 1.5; transition: border-color 0.2s;
+        max-height: 120px; overflow-y: auto;
       }
       .cw-input:focus { border-color: #0d2240; }
       .cw-input:disabled { background: #f9fafb; }
       .cw-input::placeholder { color: #9ca3af; }
 
       .cw-send {
-        width: 40px; height: 40px;
-        background: #0d2240;
-        border: none;
-        border-radius: 12px;
-        color: white;
-        cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-        transition: all 0.2s;
+        width: 40px; height: 40px; background: #0d2240;
+        border: none; border-radius: 12px; color: white;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0; transition: all 0.2s;
       }
       .cw-send:hover { background: #1a3a6b; transform: scale(1.05); }
       .cw-send:disabled { background: #d1d5db; cursor: not-allowed; transform: none; }
 
       .cw-hint {
-        font-size: 10.5px;
-        color: #9ca3af;
-        margin-top: 6px;
-        text-align: center;
+        font-size: 10.5px; color: #9ca3af;
+        margin-top: 6px; text-align: center;
         font-family: 'DM Sans', sans-serif;
       }
       .cw-hint kbd {
-        background: #f3f4f6;
-        border: 1px solid #d1d5db;
-        border-radius: 3px;
-        padding: 1px 4px;
-        font-size: 10px;
-        font-family: 'DM Mono', monospace;
+        background: #f3f4f6; border: 1px solid #d1d5db;
+        border-radius: 3px; padding: 1px 4px;
+        font-size: 10px; font-family: 'DM Mono', monospace;
       }
 
       /* ── ANIMATIONS ── */
@@ -485,17 +555,13 @@ const ChatWidget = (() => {
 
       /* ── RESPONSIVE ── */
       @media (max-width: 480px) {
-        .cw-panel {
-          width: calc(100vw - 24px);
-          right: 12px;
-          bottom: 80px;
-        }
+        .cw-panel { width: calc(100vw - 24px); right: 12px; bottom: 80px; }
         .cw-trigger { right: 16px; bottom: 16px; }
       }
     `;
         document.head.appendChild(style);
     }
 
-    // ── PUBLIC API ────────────────────────────────────────────
-    return { init, toggle, sendMessage, destroy, _handleKey, _submitInput, _autoResize };
+    // ── PUBLIC API ──────────────────────────────────────────
+    return { init, toggle, sendMessage, destroy, _handleKey, _submitInput, _autoResize, _saveApiKey };
 })();

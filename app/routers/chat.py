@@ -1,9 +1,11 @@
 import uuid
+import logging
 from fastapi import APIRouter, HTTPException
 from app.schemas.chat import StartSessionRequest, MessageRequest, ChatResponse, DeleteResponse
 from app.services.session import session_manager
 from app.services.gemini import gemini_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -33,7 +35,16 @@ async def start_session(req: StartSessionRequest):
     )
 
     session_data = session_manager.get(session_id)
-    reply = await gemini_service.send(session_data, user_message=None)
+
+    try:
+        reply = await gemini_service.send(session_data, user_message=None)
+    except Exception as e:
+        logger.error(f"Gemini error on session start: {e}")
+        reply = (
+            "⚠️ No pude conectarme con Gemini en este momento. "
+            "Esto puede deberse a un límite de cuota temporal o a un problema con la API key. "
+            "Intenta de nuevo en unos segundos."
+        )
 
     return ChatResponse(session_id=session_id, reply=reply)
 
@@ -45,8 +56,16 @@ async def send_message(req: MessageRequest):
         raise HTTPException(status_code=404, detail="Sesión no encontrada o expirada.")
 
     session_data = session_manager.get(req.session_id)
-    reply = await gemini_service.send(session_data, user_message=req.message)
-    session_manager.append(req.session_id, user_msg=req.message, assistant_msg=reply)
+
+    try:
+        reply = await gemini_service.send(session_data, user_message=req.message)
+        session_manager.append(req.session_id, user_msg=req.message, assistant_msg=reply)
+    except Exception as e:
+        logger.error(f"Gemini error on message: {e}")
+        reply = (
+            "⚠️ Error al procesar tu mensaje con Gemini. "
+            "Puede ser un límite de cuota temporal. Intenta de nuevo en unos segundos."
+        )
 
     return ChatResponse(session_id=req.session_id, reply=reply)
 

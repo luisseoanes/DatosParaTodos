@@ -700,65 +700,128 @@
                     </div>
                 </div>
 
-                <!-- ══════════════ STEP 4: CONCLUSIONES IA ══════════ -->
+                <!-- ══════════════ STEP 4: AGENTE ESPECIALISTA ══════════════ -->
                 <div class="step-panel" id="tab-4">
-                    <!-- Gemini key -->
-                    <div class="gemini-bar">
-                        <div class="gemini-label"><span>✨</span> Google Gemini IA</div>
-                        <input type="password" class="gemini-input" id="geminiKey"
-                            placeholder="Pega tu API key de Google Gemini aquí (gratuita en aistudio.google.com)">
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="btn btn-sm"
-                            style="border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);white-space:nowrap;background:rgba(255,255,255,0.07)">
-                            Obtener key ↗
-                        </a>
-                    </div>
 
-                    <!-- User context -->
-                    <div class="card" style="margin-bottom:20px">
-                        <div class="card-header">
-                            <div class="card-title">👤 ¿Quién eres y qué buscas?</div>
-                            <div style="font-size:12px;color:var(--gray-400)">Opcional — personaliza el análisis</div>
-                        </div>
-                        <div class="card-body">
-                            <textarea class="context-area" id="userContext"
-                                placeholder="Ejemplo: Soy un funcionario de la Secretaría de Educación de Antioquia y quiero entender los patrones de deserción escolar para priorizar intervenciones en municipios críticos..."></textarea>
+                    <!-- Info sobre el agente -->
+                    <div class="alert alert-info" style="margin-bottom: 20px">
+                        <div class="alert-icon">🤖</div>
+                        <div>
+                            El <strong>agente especialista</strong> ha analizado los datos de esta sección
+                            y está listo para responder tus preguntas. Usa el chat para explorar hallazgos,
+                            comparar indicadores o entender tendencias.
                         </div>
                     </div>
 
-                    <!-- Generate button -->
-                    <div style="display:flex;gap:12px;align-items:center;margin-bottom:24px;flex-wrap:wrap">
-                        <button class="btn btn-primary btn-lg" id="btnGenerate" onclick="generateConclusions()"
-                            style="background:var(--section-color,var(--blue));border-color:var(--section-color,var(--blue))">
-                            ✨ Generar análisis con Gemini
-                        </button>
-                        <div style="font-size:13px;color:var(--gray-400)">Gemini analizará el dataset y generará
-                            conclusiones personalizadas</div>
-                    </div>
-
-                    <!-- Analysis output -->
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title" id="analysisCardTitle">Análisis de Inteligencia Artificial</div>
-                            <div style="display:flex;gap:8px;align-items:center" id="analysisStatus"></div>
-                        </div>
-                        <div class="card-body">
-                            <div id="analysisOutput">
-                                <div class="empty-state" style="padding:40px">
-                                    <div class="empty-icon">🤖</div>
-                                    <div class="empty-title">Listo para analizar</div>
-                                    <div class="empty-desc">Ingresa tu API key de Gemini y haz clic en "Generar
-                                        análisis" para obtener conclusiones personalizadas sobre este dataset.</div>
-                                </div>
+                    <!-- Estado: esperando que el pipeline termine -->
+                    <div id="agentPendingState">
+                        <div class="empty-state" style="padding: 48px">
+                            <div class="empty-icon">⚙️</div>
+                            <div class="empty-title">Completa el pipeline primero</div>
+                            <div class="empty-desc">
+                                El agente necesita las conclusiones del análisis de datos.
+                                Ejecuta los pasos 1–3 y regresa aquí.
                             </div>
                         </div>
                     </div>
 
-                    <!-- Download report button -->
-                    <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px">
-                        <button class="btn btn-ghost" onclick="exportReport()" id="btnExport" disabled>📄 Descargar
-                            reporte</button>
+                    <!-- Chat activo (se muestra luego del pipeline) -->
+                    <div id="agentActiveState" style="display: none">
+                        <div id="chat-widget-root"></div>
+
+                        <!-- Resumen de lo que sabe el agente -->
+                        <div class="card" style="margin-top: 20px" id="agentContextCard">
+                            <div class="card-header">
+                                <div class="card-title">📋 Contexto del agente</div>
+                                <span class="badge badge-green">✓ Listo</span>
+                            </div>
+                            <div class="card-body" id="agentContextSummary"
+                                style="font-size: 13px; color: var(--gray-600); line-height: 1.6">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Export (mantiene funcionalidad anterior) -->
+                    <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px">
+                        <button class="btn btn-ghost" onclick="exportReport()" id="btnExport" disabled>
+                            📄 Descargar reporte
+                        </button>
+                    </div>
+
                 </div>
+                <!-- /STEP 4 -->
+
+
+                <!-- ============================================================
+  JS para lanzar el agente especialista.
+============================================================ -->
+                <script>
+                    // Llamar esta función al final de runPipeline(), cuando el pipeline termina con éxito.
+                    function _launchSpecialistAgent() {
+                        if (!PAGE.cleanData || !PAGE.analysis) return;
+
+                        // Construir resumen de conclusiones a partir del análisis
+                        const ds = section.datasets[PAGE.activeDataset];
+                        const stats = PAGE.analysis.stats || {};
+                        const numCols = PAGE.analysis.cols?.numeric || [];
+
+                        const conclusiones = _buildConclusiones(ds, numCols, stats);
+
+                        // Mostrar la sección del agente
+                        document.getElementById('agentPendingState').style.display = 'none';
+                        document.getElementById('agentActiveState').style.display = 'block';
+
+                        // Mostrar resumen en la card
+                        document.getElementById('agentContextSummary').innerHTML = `
+      <strong>Dataset:</strong> ${ds.title}<br>
+      <strong>Registros limpios:</strong> ${PAGE.cleanData.length.toLocaleString()}<br>
+      <strong>Calidad:</strong> ${PAGE.cleanScore}% · <strong>Correcciones:</strong> ${PAGE.issues.length}<br>
+      <strong>Variables analizadas:</strong> ${numCols.slice(0, 4).join(', ')}${numCols.length > 4 ? '...' : ''}
+    `;
+
+                        // Inicializar el widget (si ya existe, destruir primero)
+                        ChatWidget.destroy();
+                        ChatWidget.init({
+                            agentType: 'specialist',
+                            categoria: section.title,
+                            conclusiones: conclusiones,
+                            containerId: 'chat-widget-root',
+                        });
+
+                        // Habilitar export
+                        document.getElementById('btnExport').disabled = false;
+
+                        showToast('🤖 Agente especialista listo — ábrelo con el botón flotante', 'success');
+                    }
+
+                    function _buildConclusiones(ds, numCols, stats) {
+                        const lines = [
+                            `Dataset: ${ds.title} (${ds.source})`,
+                            `Registros analizados: ${PAGE.cleanData?.length?.toLocaleString() || 'N/A'}`,
+                            `Puntuación de calidad: ${PAGE.cleanScore}/100`,
+                            `Correcciones aplicadas: ${PAGE.issues.length}`,
+                            '',
+                            'Estadísticas principales:',
+                        ];
+
+                        numCols.slice(0, 6).forEach(col => {
+                            const s = stats[col];
+                            if (s && s.type === 'numeric') {
+                                lines.push(`- ${col}: promedio=${s.mean}, mín=${s.min}, máx=${s.max}, nulos=${s.nullPct}%`);
+                            }
+                        });
+
+                        if (PAGE.predResult) {
+                            lines.push('', 'Predicción:');
+                            lines.push(`- Variable: ${PAGE.predResult.col}`);
+                            lines.push(`- Tendencia: ${PAGE.predResult.pred.direction}`);
+                            lines.push(`- Próximos valores estimados: ${PAGE.predResult.pred.predictions.slice(0, 5).join(', ')}`);
+                        }
+
+                        return lines.join('\n');
+                    }
+                </script>
 
             </div><!-- /step-tabs-wrap -->
         </main>
