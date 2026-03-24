@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="DatosParaTodos — Plataforma Nacional de Datos Abiertos de Colombia. Accede, limpia, visualiza y analiza datos gubernamentales con inteligencia artificial.">
+    <title>DatosParaTodos — Plataforma Nacional de Datos Abiertos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="css/main.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <style>
+        /* ── HOME-SPECIFIC ────────────────────────────────────── */
+        .hero-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .hero-visual {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .hero-data-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            animation: fadeUp 0.5s ease both;
+        }
+
+        .hero-data-card:nth-child(2) {
+            animation-delay: 0.1s;
+            margin-left: 24px;
+        }
+
+        .hero-data-card:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .hero-data-card:nth-child(4) {
+            animation-delay: 0.3s;
+            margin-left: 12px;
+        }
+
+        .hdc-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+
+        .hdc-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .hdc-value {
+            font-family: 'Libre Baskerville', serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: #f7c948;
+            line-height: 1.2;
+        }
+
+        /* Pipeline preview */
+        .pipeline-preview {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            animation: fadeUp 0.5s ease 0.4s both;
+        }
+
+        .pp-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            position: relative;
+        }
+
+        .pp-step::after {
+            content: '→';
+            position: absolute;
+            right: -8px;
+            top: 8px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 14px;
+        }
+
+        .pp-step:last-child::after {
+            display: none;
+        }
+
+        .pp-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .pp-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+
+        /* How it works */
+        .how-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        .how-card {
+            text-align: center;
+            padding: 32px 20px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--r-xl);
+            position: relative;
+        }
+
+        .how-num {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--blue-dark);
+            color: var(--white);
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .how-icon {
+            font-size: 40px;
+            margin-bottom: 16px;
+        }
+
+        .how-title {
+            font-family: 'Libre Baskerville', serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+        }
+
+        .how-desc {
+            font-size: 13px;
+            color: var(--gray-500);
+            line-height: 1.6;
+        }
+
+        /* Numbers section */
+        .numbers-band {
+            background: #0d2240;
+            padding: 56px 0;
+            color: var(--white);
+        }
+
+        .numbers-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 40px;
+        }
+
+        .number-item {
+            text-align: center;
+        }
+
+        .number-value {
+            font-family: 'Libre Baskerville', serif;
+            font-size: 48px;
+            font-weight: 700;
+            color: #f7c948;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .number-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Live chart preview */
+        .chart-preview-wrap {
+            background: var(--gray-900);
+            border-radius: var(--r-xl);
+            padding: 24px;
+            height: 280px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-preview-wrap::before {
+            content: 'Vista previa — datos en vivo';
+            position: absolute;
+            top: 16px;
+            left: 20px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 900px) {
+            .hero-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-visual {
+                display: none;
+            }
+
+            .how-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .numbers-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- GOV BAR -->
+    <div class="gov-bar">
+        <div class="gov-bar-inner">
+            <div class="gov-flag">
+                <span class="f-y"></span>
+                <span class="f-b"></span>
+                <span class="f-r"></span>
+            </div>
+            <div class="gov-bar-text">
+                <strong>República de Colombia</strong> · Gobierno en línea · Portal de Datos Abiertos
+            </div>
+            <div style="margin-left:auto;display:flex;gap:16px">
+                <a href="#" style="color:rgba(255,255,255,0.6);font-size:12px;text-decoration:none">datos.gov.co</a>
+                <a href="#" style="color:rgba(255,255,255,0.6);font-size:12px;text-decoration:none">gov.co</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="index.html" class="site-logo">
+                <div class="logo-emblem">🇨🇴</div>
+                <div class="logo-texts">
+                    <span class="logo-name">DatosParaTodos</span>
+                    <span class="logo-tagline">Plataforma Nacional · Colombia</span>
+                </div>
+            </a>
+
+            <nav class="header-nav" id="headerNav">
+                <!-- Populated by JS -->
+            </nav>
+
+            <div class="header-actions">
+                <button class="btn btn-ghost btn-sm" onclick="scrollToSections()">Ver secciones</button>
+                <a href="https://www.datos.gov.co" target="_blank" class="btn btn-primary btn-sm">datos.gov.co ↗</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-layout">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <span class="dot"></span>
+                        Datos actualizados en tiempo real
+                    </div>
+                    <h1 class="hero-title">
+                        Los datos de Colombia,<br>
+                        al alcance de <em>todos</em>
+                    </h1>
+                    <p class="hero-subtitle">
+                        Accede a datasets oficiales de datos.gov.co, limpia la información automáticamente,
+                        visualízala con herramientas de análisis y obtén conclusiones con inteligencia artificial.
+                    </p>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap">
+                        <button class="btn btn-primary btn-lg" onclick="scrollToSections()">
+                            Explorar secciones →
+                        </button>
+                        <a href="#como-funciona" class="btn btn-outline btn-lg"
+                            style="color:white;border-color:rgba(255,255,255,0.4)">
+                            ¿Cómo funciona?
+                        </a>
+                    </div>
+
+                    <div class="hero-stats">
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">8</span>
+                            <span class="hero-stat-label">Secciones temáticas</span>
+                        </div>
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">32</span>
+                            <span class="hero-stat-label">Datasets integrados</span>
+                        </div>
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">$0</span>
+                            <span class="hero-stat-label">Costo de acceso</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-visual">
+                    <div class="hero-data-card">
+                        <div class="hdc-icon">🚦</div>
+                        <div>
+                            <div class="hdc-label">Accidentalidad Medellín</div>
+                            <div class="hdc-value">24,830 registros</div>
+                        </div>
+                        <div style="margin-left:auto"><span class="badge badge-green">✓ Limpio</span></div>
+                    </div>
+                    <div class="hero-data-card">
+                        <div class="hdc-icon">🌿</div>
+                        <div>
+                            <div class="hdc-label">Calidad del Aire SIATA</div>
+                            <div class="hdc-value">PM2.5: 42 µg/m³</div>
+                        </div>
+                        <div style="margin-left:auto"><span class="badge badge-amber">⚠ Moderado</span></div>
+                    </div>
+                    <div class="hero-data-card">
+                        <div class="hdc-icon">📈</div>
+                        <div>
+                            <div class="hdc-label">Exportaciones FOB</div>
+                            <div class="hdc-value">$2.4B USD / mes</div>
+                        </div>
+                        <div style="margin-left:auto"><span class="badge badge-green">↑ 3.2%</span></div>
+                    </div>
+                    <div class="hero-data-card">
+                        <div class="hdc-icon">🎓</div>
+                        <div>
+                            <div class="hdc-label">Matrícula educativa</div>
+                            <div class="hdc-value">10.2M estudiantes</div>
+                        </div>
+                        <div style="margin-left:auto"><span class="badge badge-blue">2025</span></div>
+                    </div>
+
+                    <div class="pipeline-preview">
+                        <div class="pp-step">
+                            <div class="pp-dot">📡</div>
+                            <div class="pp-label">API</div>
+                        </div>
+                        <div class="pp-step">
+                            <div class="pp-dot">🧹</div>
+                            <div class="pp-label">Limpieza</div>
+                        </div>
+                        <div class="pp-step">
+                            <div class="pp-dot">📊</div>
+                            <div class="pp-label">Visualizar</div>
+                        </div>
+                        <div class="pp-step">
+                            <div class="pp-dot">🔮</div>
+                            <div class="pp-label">Predecir</div>
+                        </div>
+                        <div class="pp-step">
+                            <div class="pp-dot">🤖</div>
+                            <div class="pp-label">IA</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NUMBERS BAND -->
+    <div class="numbers-band">
+        <div class="container">
+            <div class="numbers-grid">
+                <div class="number-item">
+                    <div class="number-value" id="counter-datasets">32</div>
+                    <div class="number-label">Datasets disponibles</div>
+                </div>
+                <div class="number-item">
+                    <div class="number-value">1.200+</div>
+                    <div class="number-label">Fuentes gubernamentales</div>
+                </div>
+                <div class="number-item">
+                    <div class="number-value">1.122</div>
+                    <div class="number-label">Municipios cubiertos</div>
+                </div>
+                <div class="number-item">
+                    <div class="number-value">32</div>
+                    <div class="number-label">Departamentos</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTIONS GRID -->
+    <section class="section" id="secciones">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Explorar por tema</div>
+                <h2 class="section-title">Elige una sección para comenzar</h2>
+                <p class="section-desc">Cada sección agrupa múltiples datasets oficiales del gobierno colombiano. Haz
+                    clic para acceder al explorador completo con limpieza automática, visualizaciones y análisis con IA.
+                </p>
+            </div>
+            <div class="section-grid" id="sectionGrid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="section" id="como-funciona"
+        style="background:var(--white);border-top:1px solid var(--gray-200);border-bottom:1px solid var(--gray-200)">
+        <div class="container">
+            <div class="section-header" style="text-align:center;max-width:600px;margin:0 auto 40px">
+                <div class="section-label">Metodología</div>
+                <h2 class="section-title">¿Cómo funciona DatosParaTodos?</h2>
+                <p class="section-desc">Un proceso estandarizado que convierte datos crudos en conocimiento accionable
+                    en cuatro pasos.</p>
+            </div>
+
+            <div class="how-grid">
+                <div class="how-card">
+                    <div class="how-num">1</div>
+                    <div class="how-icon">📡</div>
+                    <div class="how-title">Conexión a datos oficiales</div>
+                    <div class="how-desc">Los datasets se cargan directamente desde la API de datos.gov.co en tiempo
+                        real. Sin descargas manuales, sin archivos desactualizados.</div>
+                </div>
+                <div class="how-card">
+                    <div class="how-num">2</div>
+                    <div class="how-icon">🧹</div>
+                    <div class="how-title">Limpieza automática</div>
+                    <div class="how-desc">Pipeline de 6 etapas: auditoría, eliminación de duplicados, imputación de
+                        nulos, corrección de outliers, normalización y puntuación de calidad.</div>
+                </div>
+                <div class="how-card">
+                    <div class="how-num">3</div>
+                    <div class="how-icon">📊</div>
+                    <div class="how-title">Visualización tipo BI</div>
+                    <div class="how-desc">Gráficas de barras, series de tiempo, distribuciones y correlaciones generadas
+                        automáticamente sobre los datos limpios.</div>
+                </div>
+                <div class="how-card">
+                    <div class="how-num">4</div>
+                    <div class="how-icon">🤖</div>
+                    <div class="how-title">Análisis con Gemini IA</div>
+                    <div class="how-desc">Google Gemini analiza el dataset y genera conclusiones, hallazgos, tendencias
+                        y recomendaciones personalizadas en lenguaje ciudadano.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DATA SOURCES -->
+    <section class="section">
+        <div class="container">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center">
+                <div>
+                    <div class="section-label">Fuentes de datos</div>
+                    <h2 class="section-title">Información directa del gobierno</h2>
+                    <p class="section-desc" style="margin-bottom:24px">
+                        Todos los datasets provienen de entidades gubernamentales colombianas acreditadas a través de la
+                        plataforma oficial datos.gov.co, garantizando su origen y vigencia.
+                    </p>
+                    <div style="display:flex;flex-direction:column;gap:12px" id="sourcesList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                <div>
+                    <div class="chart-preview-wrap">
+                        <canvas id="previewChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section" style="background:linear-gradient(135deg,#0d2240,#1a3a6b);color:white;padding:72px 0">
+        <div class="container" style="text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">🇨🇴</div>
+            <h2
+                style="font-family:'Libre Baskerville',serif;font-size:36px;font-weight:700;margin-bottom:12px;letter-spacing:-0.5px">
+                Los datos públicos son de todos.<br>Úsalos.
+            </h2>
+            <p style="color:rgba(255,255,255,0.7);font-size:17px;max-width:520px;margin:0 auto 32px;line-height:1.6">
+                No necesitas ser un científico de datos. DatosParaTodos hace el trabajo técnico para que puedas
+                enfocarte en las decisiones que importan.
+            </p>
+            <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+                <button class="btn btn-primary btn-lg"
+                    style="background:#f7c948;border-color:#f7c948;color:#0d2240;font-weight:700"
+                    onclick="scrollToSections()">
+                    Comenzar ahora →
+                </button>
+                <a href="https://www.datos.gov.co" target="_blank" class="btn btn-lg"
+                    style="border-color:rgba(255,255,255,0.3);color:white">
+                    Ver datos.gov.co ↗
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand-name">DatosParaTodos</div>
+                    <div class="footer-brand-desc">Plataforma nacional de datos abiertos de Colombia. Democratizando el
+                        acceso a la información pública para ciudadanos, empresas y organizaciones.</div>
+                </div>
+                <div>
+                    <div class="footer-col-title">Secciones</div>
+                    <div class="footer-links" id="footerLinks"><!-- JS --></div>
+                </div>
+                <div>
+                    <div class="footer-col-title">Recursos</div>
+                    <div class="footer-links">
+                        <a href="https://www.datos.gov.co" target="_blank">Portal datos.gov.co</a>
+                        <a href="https://herramientas.datos.gov.co" target="_blank">Herramientas</a>
+                        <a href="https://www.dane.gov.co" target="_blank">DANE</a>
+                        <a href="#">Documentación API</a>
+                        <a href="#">Glosario</a>
+                    </div>
+                </div>
+                <div>
+                    <div class="footer-col-title">Entidades</div>
+                    <div class="footer-links">
+                        <a href="https://www.mintic.gov.co" target="_blank">MinTIC</a>
+                        <a href="https://www.dnp.gov.co" target="_blank">DNP</a>
+                        <a href="https://www.ins.gov.co" target="_blank">INS</a>
+                        <a href="https://www.invias.gov.co" target="_blank">INVIAS</a>
+                        <a href="https://www.policia.gov.co" target="_blank">Policía Nacional</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div class="footer-bottom-left">
+                    <div class="footer-colombia">
+                        <div class="footer-flag">
+                            <span class="fy"></span>
+                            <span class="fb"></span>
+                            <span class="fr"></span>
+                        </div>
+                        <span>República de Colombia</span>
+                    </div>
+                    <span style="color:rgba(255,255,255,0.3)">·</span>
+                    <span>DatosParaTodos · Colombia 5.0 · 2026</span>
+                </div>
+                <div>Datos provistos por <a href="https://www.datos.gov.co" style="color:#f7c948"
+                        target="_blank">datos.gov.co</a> · Análisis con Google Gemini</div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ── BUILD NAV ────────────────────────────────────────────
+        function buildNav() {
+            const nav = document.getElementById('headerNav');
+            nav.innerHTML = SECTIONS.slice(0, 6).map(s =>
+                `<a href="${s.page}" class="nav-link">${s.icon} ${s.title.split(' ')[0]}</a>`
+            ).join('') + `<a href="#secciones" class="nav-link">Más ▾</a>`;
+        }
+
+        // ── BUILD SECTION GRID ───────────────────────────────────
+        function buildSectionGrid() {
+            const grid = document.getElementById('sectionGrid');
+            grid.innerHTML = SECTIONS.map(s => `
+    <a href="${s.page}" class="section-card" style="--section-color:${s.color}">
+      <div class="section-card-icon" style="background:${s.colorLight};color:${s.color}">${s.icon}</div>
+      <div>
+        <div class="section-card-title">${s.title}</div>
+        <div class="section-card-desc">${s.subtitle}</div>
+      </div>
+      <div class="section-card-meta">
+        <div class="section-card-datasets" style="color:${s.color}">
+          📦 ${s.datasets.length} datasets disponibles
+        </div>
+        <div class="section-card-arrow" style="background:${s.colorLight};color:${s.color}">→</div>
+      </div>
+      <style>.section-card:hover .section-card-arrow { background: ${s.color} !important; }</style>
+    </a>`).join('');
+
+            // Add top border color via inline style
+            document.querySelectorAll('.section-card').forEach((card, i) => {
+                card.style.setProperty('--before-bg', SECTIONS[i].color);
+            });
+            // Use ::before via CSS var injection
+            const styleEl = document.createElement('style');
+            styleEl.textContent = SECTIONS.map((s, i) =>
+                `.section-card:nth-child(${i + 1})::before { background: ${s.color}; }`
+            ).join('\n');
+            document.head.appendChild(styleEl);
+        }
+
+        // ── BUILD FOOTER LINKS ───────────────────────────────────
+        function buildFooterLinks() {
+            document.getElementById('footerLinks').innerHTML =
+                SECTIONS.map(s => `<a href="${s.page}">${s.icon} ${s.title}</a>`).join('');
+        }
+
+        // ── BUILD SOURCES LIST ───────────────────────────────────
+        function buildSourcesList() {
+            const sources = [
+                { icon: '🏛️', name: 'DANE — Departamento Administrativo Nacional de Estadística', datasets: 8 },
+                { icon: '🚔', name: 'Policía Nacional de Colombia', datasets: 4 },
+                { icon: '🏥', name: 'INS — Instituto Nacional de Salud', datasets: 3 },
+                { icon: '🎓', name: 'Ministerio de Educación Nacional', datasets: 4 },
+                { icon: '🛣️', name: 'INVIAS — Instituto Nacional de Vías', datasets: 2 },
+                { icon: '💻', name: 'MinTIC — Ministerio de Tecnologías', datasets: 2 },
+            ];
+            document.getElementById('sourcesList').innerHTML = sources.map(s => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--gray-200)">
+      <span style="font-size:22px">${s.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:13.5px;font-weight:500;color:var(--gray-800)">${s.name}</div>
+        <div style="font-size:12px;color:var(--gray-400)">${s.datasets} datasets integrados</div>
+      </div>
+      <span class="badge badge-green">${s.datasets}</span>
+    </div>`).join('');
+        }
+
+        // ── PREVIEW CHART ────────────────────────────────────────
+        function buildPreviewChart() {
+            const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            const ctx = document.getElementById('previewChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [
+                        { label: 'Movilidad', data: [65, 72, 68, 80, 75, 82, 79, 85, 83, 88, 90, 87], borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,0.1)', fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 },
+                        { label: 'Economía', data: [45, 52, 48, 58, 62, 68, 65, 70, 72, 75, 78, 80], borderColor: '#f7c948', backgroundColor: 'rgba(247,201,72,0.1)', fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 },
+                        { label: 'Salud', data: [30, 28, 35, 32, 38, 36, 40, 38, 42, 40, 44, 43], borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,0.1)', fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, padding: 16 } } },
+                    scales: {
+                        x: { ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    },
+                },
+            });
+        }
+
+        function scrollToSections() {
+            document.getElementById('secciones').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // ── INIT ────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            buildNav();
+            buildSectionGrid();
+            buildFooterLinks();
+            buildSourcesList();
+            buildPreviewChart();
+        });
+    </script>
+</body>
+
+</html>
