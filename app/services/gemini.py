@@ -1,5 +1,6 @@
 from typing import Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.config import settings
 
 # ---------------------------------------------------------------------------
@@ -51,30 +52,22 @@ Tu comportamiento:
 """
 
 # ---------------------------------------------------------------------------
-# Servicio principal
+# Servicio principal — usa google-genai (nuevo SDK)
 # ---------------------------------------------------------------------------
 
 class GeminiService:
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
+        self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
         self._model_name = settings.GEMINI_MODEL
-
-    def _build_model(self, system_prompt: str):
-        return genai.GenerativeModel(
-            model_name=self._model_name,
-            system_instruction=system_prompt,
-        )
 
     async def send(self, session_data: dict, user_message: Optional[str] = None) -> str:
         """
         Envía un mensaje al agente correspondiente usando el historial de la sesión.
-        El tipo de agente se determina por session_data["agent_type"]:
-          - "navigation": agente de navegación del index
-          - "specialist": agente especialista de sección
         """
         agent_type = session_data.get("agent_type", "navigation")
         history = session_data.get("history", [])
 
+        # Construir system prompt según tipo de agente
         if agent_type == "navigation":
             system_prompt = NAVIGATION_AGENT_PROMPT
         elif agent_type == "specialist":
@@ -85,19 +78,46 @@ class GeminiService:
                 conclusiones=conclusiones,
             )
         else:
-            # Fallback: usa system_context genérico si viene de flujo anterior
             system_prompt = session_data.get("system_context", "")
 
-        model = self._build_model(system_prompt)
+        # Construir historial de contenidos
+        contents = []
+        for turn in history:
+            role = turn["role"]  # "user" o "model"
+            contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=turn["content"])],
+                )
+            )
 
-        gemini_history = [
-            {"role": turn["role"], "parts": [turn["content"]]}
-            for turn in history
-        ]
-
-        chat = model.start_chat(history=gemini_history)
+        # Agregar el mensaje del usuario actual
         prompt = user_message or "Preséntate brevemente al usuario."
-        response = chat.send_message(prompt)
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)],
+            )
+        )
+
+        # Configuración con thinking y Google Search
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            thinking_config=types.ThinkingConfig(
+                thinking_level="HIGH",
+            ),
+            tools=[
+                types.Tool(google_search=types.GoogleSearch()),
+            ],
+        )
+
+        # Llamar al modelo (síncrono, se ejecuta en el event loop)
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=contents,
+            config=config,
+        )
+
         return response.text
 
 

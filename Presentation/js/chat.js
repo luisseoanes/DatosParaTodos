@@ -1,175 +1,86 @@
 // ============================================================
 //  DatosParaTodos — Chat Widget
-//  Llama directamente a la API REST de Gemini desde el frontend.
-//  No requiere backend.
+//  Llama al backend FastAPI para comunicarse con Gemini.
 // ============================================================
 
-const GEMINI_REST_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const CHAT_API = 'http://localhost:8000/chat';
 
 const ChatWidget = (() => {
+    let sessionId = null;
     let isOpen = false;
     let isLoading = false;
-    let history = [];     // [{role:'user'|'model', parts:[{text}]}]
-    let systemPrompt = '';
-    let _apiKey = '';
-
-    // ── PROMPTS ─────────────────────────────────────────────
-    const NAVIGATION_PROMPT = `Eres el agente de navegación de DatosParaTodos, una plataforma de democratización de datos públicos del municipio de Medellín. Tu rol es recibir al usuario, entender su necesidad y orientarlo hacia la sección correcta.
-
-Las secciones disponibles son: economía, educación, medio ambiente, movilidad, salud, seguridad, servicios, trámites.
-
-Reglas:
-1. Saluda y pregunta en qué puedes ayudar.
-2. Identifica la sección correcta y explica por qué.
-3. Si no encaja claramente, pide más detalle.
-4. Responde siempre en español, tono cercano y claro.`;
-
-    const SPECIALIST_PROMPT = (categoria, conclusiones) => `Eres un agente especialista en ${categoria} para DatosParaTodos, una plataforma de datos públicos de Medellín.
-
-Contexto del análisis de datos:
-${conclusiones}
-
-Reglas:
-1. Eres experto en ${categoria} en el contexto de Medellín.
-2. Responde basándote en el contexto de análisis proporcionado.
-3. Si una pregunta va más allá del contexto, indícalo claramente.
-4. Cita datos concretos del contexto cuando sea posible.
-5. Responde en español, tono profesional pero accesible.`;
 
     // ── INIT ────────────────────────────────────────────────
     function init({ agentType = 'navigation', categoria = '', conclusiones = '', containerId = 'chat-widget-root' } = {}) {
         const isInline = agentType === 'specialist';
         isOpen = isInline;
-        history = [];
-
-        if (agentType === 'specialist') {
-            systemPrompt = SPECIALIST_PROMPT(categoria, conclusiones);
-        } else {
-            systemPrompt = NAVIGATION_PROMPT;
-        }
 
         _injectStyles();
         _buildDOM(containerId, agentType);
-
-        // Intentar obtener la key almacenada
-        _apiKey = localStorage.getItem('gemini_api_key') || '';
-        const keyInput = document.getElementById('cwApiKey');
-        if (keyInput && _apiKey) keyInput.value = _apiKey;
-
-        // Auto-greet si ya hay key
-        if (_apiKey) {
-            _sendToGemini('Preséntate brevemente al usuario.');
-        } else {
-            _appendMessage('agent', '🔑 Para comenzar, ingresa tu API Key de Google Gemini arriba. Es gratuita y la puedes obtener en [aistudio.google.com](https://aistudio.google.com/app/apikey).');
-            _setInputEnabled(false);
-        }
+        _startSession(agentType, categoria, conclusiones);
 
         window.addEventListener('beforeunload', destroy);
     }
 
-    // ── GEMINI REST API ─────────────────────────────────────
-    async function _sendToGemini(userText) {
-        if (!_apiKey) {
-            _appendMessage('agent', '⚠️ Necesitas ingresar tu API Key de Gemini para poder chatear.');
-            return;
-        }
-
+    // ── SESSION ─────────────────────────────────────────────
+    async function _startSession(agentType, categoria, conclusiones) {
         try {
-            // Build contents: system instruction + history + new message
-            const contents = [];
-
-            // Add history
-            for (const turn of history) {
-                contents.push(turn);
+            const body = { agent_type: agentType };
+            if (agentType === 'specialist') {
+                body.categoria = categoria;
+                body.conclusiones = conclusiones || 'Análisis pendiente.';
             }
 
-            // Add user message
-            contents.push({ role: 'user', parts: [{ text: userText }] });
-
-            const body = {
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: contents
-            };
-
-            const res = await fetch(`${GEMINI_REST_URL}?key=${_apiKey}`, {
+            const res = await fetch(`${CHAT_API}/session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
             });
 
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                const msg = errorData?.error?.message || `HTTP ${res.status}`;
-                if (res.status === 429) {
-                    throw new Error('⏳ Límite de cuota alcanzado. Espera unos segundos e intenta de nuevo.');
-                }
-                if (res.status === 400 && msg.includes('API key')) {
-                    throw new Error('🔑 API Key inválida. Verifica que sea correcta.');
-                }
-                throw new Error(msg);
-            }
-
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta.';
-
-            // Store in history
-            history.push({ role: 'user', parts: [{ text: userText }] });
-            history.push({ role: 'model', parts: [{ text: reply }] });
-
-            return reply;
+            sessionId = data.session_id;
+            _appendMessage('agent', data.reply);
+            _setInputEnabled(true);
         } catch (e) {
-            throw e;
+            _appendMessage('agent', '⚠️ No se pudo conectar con el asistente. Verifica que el servidor esté activo en localhost:8000.');
+            console.error('[ChatWidget] Session error:', e);
         }
     }
 
     async function sendMessage(text) {
-        if (!text.trim() || isLoading) return;
+        if (!text.trim() || isLoading || !sessionId) return;
         isLoading = true;
         _appendMessage('user', text);
         _setInputEnabled(false);
         _showTyping();
 
         try {
-            const reply = await _sendToGemini(text);
+            const res = await fetch(`${CHAT_API}/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, message: text }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
             _hideTyping();
-            _appendMessage('agent', reply);
+            _appendMessage('agent', data.reply);
         } catch (e) {
             _hideTyping();
-            _appendMessage('agent', `⚠️ ${e.message}`);
-            console.error('[ChatWidget] Error:', e);
+            _appendMessage('agent', '⚠️ Error al enviar el mensaje. Intenta de nuevo.');
+            console.error('[ChatWidget] Message error:', e);
         } finally {
             isLoading = false;
             _setInputEnabled(true);
         }
     }
 
-    function destroy() {
-        history = [];
-        const root = document.getElementById('cwPanel');
-        if (root) root.innerHTML = '';
-    }
-
-    // ── API KEY ─────────────────────────────────────────────
-    function _saveApiKey() {
-        const input = document.getElementById('cwApiKey');
-        if (!input) return;
-        const key = input.value.trim();
-        if (!key) return;
-        _apiKey = key;
-        localStorage.setItem('gemini_api_key', key);
-        _setInputEnabled(true);
-        // Clear messages and send greeting
-        const msgs = document.getElementById('cwMessages');
-        if (msgs) msgs.innerHTML = '';
-        history = [];
-        _showTyping();
-        _sendToGemini('Preséntate brevemente al usuario.').then(reply => {
-            _hideTyping();
-            _appendMessage('agent', reply);
-        }).catch(e => {
-            _hideTyping();
-            _appendMessage('agent', `⚠️ ${e.message}`);
-        });
+    async function destroy() {
+        if (!sessionId) return;
+        try {
+            await fetch(`${CHAT_API}/session/${sessionId}`, { method: 'DELETE', keepalive: true });
+        } catch (_) { }
+        sessionId = null;
     }
 
     // ── DOM ─────────────────────────────────────────────────
@@ -187,17 +98,6 @@ Reglas:
       </button>`;
 
         const panelClasses = `cw-panel ${isInline ? 'cw-inline cw-open' : ''}`;
-
-        const apiKeyBar = `
-      <div class="cw-apikey-bar">
-        <span class="cw-apikey-icon">🔑</span>
-        <input type="password" class="cw-apikey-input" id="cwApiKey"
-          placeholder="Pega tu API Key de Gemini aquí"
-          onkeydown="if(event.key==='Enter'){ChatWidget._saveApiKey();}">
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="cw-apikey-link">Obtener ↗</a>
-        <button class="cw-apikey-btn" onclick="ChatWidget._saveApiKey()">Conectar</button>
-      </div>`;
-
         const closeHtml = isInline ? '' : `
           <button class="cw-close" onclick="ChatWidget.toggle()" aria-label="Cerrar chat">✕</button>`;
 
@@ -215,9 +115,12 @@ Reglas:
           ${closeHtml}
         </div>
 
-        ${apiKeyBar}
-
-        <div class="cw-messages" id="cwMessages"></div>
+        <div class="cw-messages" id="cwMessages">
+          <div class="cw-message cw-message-agent">
+            <div class="cw-msg-avatar">🤖</div>
+            <div class="cw-bubble">Conectando con el asistente…</div>
+          </div>
+        </div>
 
         <div class="cw-footer">
           <div class="cw-input-row">
@@ -307,7 +210,6 @@ Reglas:
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#3b82f6">$1</a>')
             .replace(/\n/g, '<br>');
     }
 
@@ -341,8 +243,7 @@ Reglas:
         style.textContent = `
       /* ── TRIGGER BUTTON ── */
       .cw-trigger {
-        position: fixed;
-        bottom: 28px; right: 28px; z-index: 1000;
+        position: fixed; bottom: 28px; right: 28px; z-index: 1000;
         display: flex; align-items: center; gap: 10px;
         padding: 12px 20px 12px 14px;
         background: #0d2240; color: white; border: none;
@@ -390,36 +291,6 @@ Reglas:
         border: 1px solid #e5e7eb; z-index: 10;
         margin-top: 10px; border-radius: 12px;
       }
-
-      /* ── API KEY BAR ── */
-      .cw-apikey-bar {
-        display: flex; align-items: center; gap: 8px;
-        padding: 8px 12px;
-        background: #f0f9ff;
-        border-bottom: 1px solid #e0f2fe;
-        flex-shrink: 0;
-      }
-      .cw-apikey-icon { font-size: 14px; }
-      .cw-apikey-input {
-        flex: 1; padding: 6px 10px;
-        border: 1px solid #cbd5e1; border-radius: 8px;
-        font-size: 12px; font-family: 'DM Sans', sans-serif;
-        color: #1e293b; background: white; outline: none;
-      }
-      .cw-apikey-input:focus { border-color: #3b82f6; }
-      .cw-apikey-link {
-        font-size: 11px; color: #3b82f6;
-        text-decoration: none; white-space: nowrap;
-      }
-      .cw-apikey-link:hover { text-decoration: underline; }
-      .cw-apikey-btn {
-        padding: 5px 12px; background: #0d2240; color: white;
-        border: none; border-radius: 8px; font-size: 12px;
-        font-weight: 600; cursor: pointer;
-        font-family: 'DM Sans', sans-serif;
-        transition: background 0.2s;
-      }
-      .cw-apikey-btn:hover { background: #1a3a6b; }
 
       /* ── HEADER ── */
       .cw-header {
@@ -563,5 +434,5 @@ Reglas:
     }
 
     // ── PUBLIC API ──────────────────────────────────────────
-    return { init, toggle, sendMessage, destroy, _handleKey, _submitInput, _autoResize, _saveApiKey };
+    return { init, toggle, sendMessage, destroy, _handleKey, _submitInput, _autoResize };
 })();
