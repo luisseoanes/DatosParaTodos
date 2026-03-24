@@ -5,15 +5,25 @@
 
 // ── FETCH ──────────────────────────────────────────────────
 async function fetchDataset(dataset, limit = 500) {
-    const url = `${dataset.endpoint}?$limit=${limit}&$order=:id`;
+    let url = `${dataset.endpoint}?$limit=${limit}&$order=:id`;
+    
+    // Inyectar Socrata App Token si está configurado para evitar límites de API (HTTP 429)
+    if (typeof CONFIG !== 'undefined' && CONFIG.socrataAppToken) {
+        url += `&$$app_token=${CONFIG.socrataAppToken}`;
+    }
+
     try {
         const res = await fetch(url, {
+            method: 'GET',
             headers: { 'Accept': 'application/json' },
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            throw new Error(`SODA API Error (HTTP ${res.status}): ${await res.text()}`);
+        }
         const data = await res.json();
         return { ok: true, data, total: data.length };
     } catch (e) {
+        console.warn(`[DatosParaTodos] Fallback sintético activado para "${dataset.title}" debido a fallo en conexión real:`, e.message);
         // Fallback: generate synthetic data shaped like the real dataset
         return { ok: false, data: generateFallback(dataset, Math.min(limit, 300)), error: e.message, synthetic: true };
     }

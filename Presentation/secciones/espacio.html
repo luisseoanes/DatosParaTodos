@@ -1015,7 +1015,7 @@
             badge.className = 'badge badge-amber';
             badge.textContent = '⏳ Cargando';
 
-            toast(`📡 Conectando a API: ${ds.title}`, 'info');
+            showToast(`📡 Conectando a API: ${ds.title}`, 'info');
 
             const result = await fetchDataset(ds, ds.limit);
             PAGE.rawData = result.data;
@@ -1027,9 +1027,9 @@
             btn.innerHTML = '↻ Recargar';
 
             if (result.synthetic) {
-                toast(`⚠️ API no disponible — cargando datos de demostración (${result.data.length} registros)`, 'warning');
+                showToast(`⚠️ API no disponible — cargando datos de demostración (${result.data.length} registros)`, 'warning');
             } else {
-                toast(`✅ ${ds.title} — ${result.data.length.toLocaleString()} registros cargados`, 'success');
+                showToast(`✅ ${ds.title} — ${result.data.length.toLocaleString()} registros cargados`, 'success');
             }
 
             document.getElementById('stepTabsWrap').style.display = '';
@@ -1112,7 +1112,7 @@
         }
 
         async function runPipeline() {
-            if (!PAGE.rawData) { toast('⚠️ Primero carga los datos', 'warning'); return; }
+            if (!PAGE.rawData) { showToast('⚠️ Primero carga los datos', 'warning'); return; }
             document.getElementById('btnRunPipeline').disabled = true;
 
             const result = await runCleaningPipeline(PAGE.rawData, section.datasets[PAGE.activeDataset], (step, status, label, msg) => {
@@ -1164,7 +1164,7 @@
             document.getElementById('btnRunPipeline').disabled = false;
             document.getElementById('btnToViz').disabled = false;
             enableTab(2);
-            toast(`✅ Limpieza completa — ${result.issues.length} correcciones · Calidad: ${result.score}%`, 'success');
+            showToast(`✅ Limpieza completa — ${result.issues.length} correcciones · Calidad: ${result.score}%`, 'success');
 
             // Pre-populate viz selectors
             if (PAGE.cleanData) {
