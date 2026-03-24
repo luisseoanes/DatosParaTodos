@@ -1,8 +1,10 @@
+# app/config.py
+
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    GEMINI_API_KEY: str = "AIzaSyA7vaemvG5B3bRZZxEoqmvrkfWXMwlVc_E" # KEY HARDCODEADA PARA TESTEAR
+    GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-1.5-flash"
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",

@@ -1,3 +1,5 @@
+# app/routers/chat.py
+
 import uuid
 from fastapi import APIRouter, HTTPException
 
