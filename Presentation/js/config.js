@@ -8,7 +8,7 @@ const CONFIG = {
     siteName: 'DatosParaTodos',
     siteTagline: 'Plataforma de Datos Abiertos de Medellín',
     version: '1.2.0',
-    backendApiBase: 'http://127.0.0.1:8000',
+    backendApiBase: 'https://datosparatodos-production.up.railway.app',
     // Gemini API — el usuario la ingresa en la UI
     geminiModel: 'gemini-2.0-flash',
     geminiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',

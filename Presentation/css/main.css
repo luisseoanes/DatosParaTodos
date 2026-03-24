@@ -1493,6 +1493,12 @@ a:hover {
 }
 
 /* ── RESPONSIVE ───────────────────────────────────────── */
+@media (max-width: 1200px) {
+    .hero-stats {
+        gap: 24px;
+    }
+}
+
 @media (max-width: 1024px) {
     .section-layout {
         grid-template-columns: 1fr;
@@ -1503,36 +1509,82 @@ a:hover {
         max-height: none;
         border-right: none;
         border-bottom: 1px solid var(--gray-200);
+        padding: 24px 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    #datasetList {
+        display: flex;
+        overflow-x: auto;
+        gap: 12px;
+        padding-bottom: 12px;
+        margin: 0 -20px;
+        padding-left: 20px;
+        padding-right: 20px;
+        scrollbar-width: none; 
+    }
+    #datasetList::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .ds-item {
+        min-width: 260px;
+        margin-bottom: 0 !important;
     }
 
     .section-main {
-        padding: 24px 20px;
+        padding: 32px 40px;
     }
 
     .footer-grid {
         grid-template-columns: 1fr 1fr;
     }
 
-    .charts-grid {
-        grid-template-columns: 1fr;
+    .charts-grid,
+    .bi-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .header-inner {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 12px 40px;
+    }
+    .header-nav {
+        order: 3;
+        width: 100%;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--gray-100);
+        justify-content: flex-start;
+        overflow-x: auto;
     }
 }
 
 @media (max-width: 768px) {
-    .container {
-        padding: 0 20px;
+    .container, .hero-inner, .header-inner, .section-hero-inner, .section-main, .section-sidebar {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
     }
 
     .hero {
-        padding: 48px 20px;
+        padding: 40px 20px;
+    }
+    
+    .section-hero {
+        padding: 32px 0 24px;
+    }
+    
+    .section-hero-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
     }
 
     .header-inner {
-        padding: 0 20px;
-    }
-
-    .header-nav {
-        display: none;
+        padding: 12px 20px;
     }
 
     .section-grid {
@@ -1542,17 +1594,107 @@ a:hover {
     .stats-row {
         grid-template-columns: 1fr 1fr;
     }
+    
+    .stats-row.cols-4 {
+        grid-template-columns: 1fr 1fr;
+    }
 
     .footer-grid {
         grid-template-columns: 1fr;
+        gap: 28px;
+    }
+    
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
     }
 
     .step-tabs {
         overflow-x: auto;
+        justify-content: flex-start;
+        padding-bottom: 8px;
+        margin-bottom: 20px;
     }
 
-    .step-tab span:not(.step-tab-num) {
-        display: none;
+    .step-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+    
+    .ds-info-bar {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 16px;
+    }
+    
+    .ds-info-meta {
+        margin-top: 4px;
+    }
+
+    .gov-bar-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 20px;
+    }
+    
+    .gemini-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .gemini-input {
+        width: 100%;
+    }
+    
+    .data-table-wrap {
+        border-radius: var(--r-md);
+        border: 1px solid var(--gray-200);
+    }
+    
+    .dataset-card {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .dataset-card .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .hero-title {
+        font-size: 32px;
+    }
+    
+    .section-hero-title {
+        font-size: 26px;
+    }
+    
+    .hero-stats {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .card-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .logo-name {
+        font-size: 16px;
     }
 }
 

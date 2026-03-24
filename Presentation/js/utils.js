@@ -67,7 +67,7 @@ function generateFallback(dataset, n) {
 
 const ANALYTICS_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase)
     ? CONFIG.backendApiBase
-    : 'http://127.0.0.1:8000';
+    : 'https://datosparatodos-production.up.railway.app';
 
 async function postAnalytics(path, payload) {
     const res = await fetch(`${ANALYTICS_API_BASE}${path}`, {
