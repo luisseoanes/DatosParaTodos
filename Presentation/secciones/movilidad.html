@@ -931,7 +931,7 @@
 
             const result = await fetchDataset(ds, ds.limit);
             PAGE.rawData = result.data;
-            PAGE.analysis = analyzeData(PAGE.rawData);
+            PAGE.analysis = await analyzeData(PAGE.rawData);
 
             badge.className = result.synthetic ? 'badge badge-amber' : 'badge badge-green';
             badge.textContent = result.synthetic ? '⚠ Datos de demostración' : `✓ ${result.data.length.toLocaleString()} registros`;
@@ -1080,7 +1080,7 @@
 
             // Pre-populate viz selectors
             if (PAGE.cleanData) {
-                const analysis = analyzeData(PAGE.cleanData);
+                const analysis = await analyzeData(PAGE.cleanData);
                 PAGE.analysis = analysis;
                 populateVizSelectors(analysis);
                 populatePredSelectors(analysis);
@@ -1149,7 +1149,7 @@
             const vals = data.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
             if (vals.length < 5) { showToast('⚠️ Se necesitan al menos 5 valores numéricos', 'warning'); btn.disabled = false; btn.innerHTML = '🔮 Calcular'; return; }
 
-            const pred = simplePrediction(vals, steps);
+            const pred = await predictSeries(vals, steps);
             PAGE.predResult = { col, vals, pred };
 
             const dirs = { alza: '📈 Tendencia al alza', baja: '📉 Tendencia a la baja', estable: '→ Tendencia estable' };
@@ -1212,7 +1212,7 @@
 
             const ds = section.datasets[PAGE.activeDataset];
             const userCtx = document.getElementById('userContext').value.trim();
-            const analysis = PAGE.analysis || analyzeData(data);
+            const analysis = PAGE.analysis || await analyzeData(data);
 
             const btn = document.getElementById('btnGenerate');
             btn.disabled = true;

@@ -55,171 +55,50 @@ function generateFallback(dataset, n) {
     return rows;
 }
 
-// ── CLEANING PIPELINE ─────────────────────────────────────
-function detectColumns(data) {
-    if (!data || data.length === 0) return { numeric: [], date: [], categorical: [], all: [] };
-    const sample = data.slice(0, Math.min(50, data.length));
-    const all = Object.keys(data[0] || {});
-    const numeric = [], date = [], categorical = [];
-    all.forEach(col => {
-        const vals = sample.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== '');
-        if (vals.length === 0) { categorical.push(col); return; }
-        const numVals = vals.filter(v => !isNaN(parseFloat(v)) && isFinite(v));
-        const dateVals = vals.filter(v => typeof v === 'string' && /\d{4}-\d{2}/.test(v));
-        if (numVals.length > vals.length * 0.6) numeric.push(col);
-        else if (dateVals.length > vals.length * 0.5) date.push(col);
-        else categorical.push(col);
+const ANALYTICS_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase)
+    ? CONFIG.backendApiBase
+    : 'http://127.0.0.1:8000';
+
+async function postAnalytics(path, payload) {
+    const res = await fetch(`${ANALYTICS_API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    return { numeric, date, categorical, all };
+    if (!res.ok) throw new Error(`Analytics API error ${res.status}`);
+    return await res.json();
 }
 
-function analyzeData(data) {
+// ── ANALYTICS (Backend) ───────────────────────────────────
+async function analyzeData(data) {
     if (!data || data.length === 0) return {};
-    const cols = detectColumns(data);
-    const stats = {};
-    cols.all.forEach(col => {
-        const vals = data.map(r => r[col]);
-        const nulls = vals.filter(v => v === null || v === undefined || v === '').length;
-        const nums = vals.map(v => parseFloat(v)).filter(v => !isNaN(v));
-        const isNum = cols.numeric.includes(col);
-        stats[col] = {
-            type: cols.numeric.includes(col) ? 'numeric' : cols.date.includes(col) ? 'date' : 'categorical',
-            total: vals.length,
-            nullCount: nulls,
-            nullPct: +(nulls / vals.length * 100).toFixed(1),
-            uniqueCount: new Set(vals.filter(v => v !== null && v !== undefined && v !== '')).size,
-            mean: isNum && nums.length ? +(nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : null,
-            median: isNum && nums.length ? +(nums.slice().sort((a, b) => a - b)[Math.floor(nums.length / 2)]).toFixed(2) : null,
-            std: isNum && nums.length ? +(Math.sqrt(nums.map(v => Math.pow(v - nums.reduce((a, b) => a + b, 0) / nums.length, 2)).reduce((a, b) => a + b, 0) / nums.length)).toFixed(2) : null,
-            min: isNum && nums.length ? Math.min(...nums) : null,
-            max: isNum && nums.length ? Math.max(...nums) : null,
-        };
-    });
-    return { cols, stats, rowCount: data.length };
+    return await postAnalytics('/analytics/profile', { data });
 }
 
 async function runCleaningPipeline(rawData, dataset, onStep) {
-    const issues = [];
-    let data = rawData.map(r => ({ ...r }));
-    const cols = detectColumns(data);
-
-    const steps = [
-        {
-            id: 'audit', label: 'Auditoría inicial', icon: '🔍',
-            fn: async (d) => {
-                let nullTotal = 0, types = {};
-                cols.all.forEach(col => {
-                    const nulls = d.filter(r => r[col] === null || r[col] === undefined || r[col] === '').length;
-                    nullTotal += nulls;
-                    types[col] = cols.numeric.includes(col) ? 'numérico' : cols.date.includes(col) ? 'fecha' : 'categórico';
-                });
-                return { data: d, msg: `${d.length.toLocaleString()} registros · ${cols.all.length} columnas · ${nullTotal} celdas vacías` };
-            },
-        },
-        {
-            id: 'duplicates', label: 'Eliminar duplicados', icon: '🗑️',
-            fn: async (d) => {
-                const seen = new Set();
-                let removed = 0;
-                const cleaned = d.filter(row => {
-                    const key = JSON.stringify(row);
-                    if (seen.has(key)) { removed++; issues.push({ tipo: 'Duplicado', campo: 'toda la fila', original: 'Fila repetida', accion: 'Eliminada' }); return false; }
-                    seen.add(key); return true;
-                });
-                return { data: cleaned, msg: `${removed} filas duplicadas eliminadas` };
-            },
-        },
-        {
-            id: 'nulls', label: 'Completar valores vacíos', icon: '✏️',
-            fn: async (d) => {
-                let filled = 0;
-                const cleaned = d.map(row => {
-                    const r = { ...row };
-                    cols.numeric.forEach(col => {
-                        if (r[col] === null || r[col] === undefined || r[col] === '') {
-                            const vals = d.map(x => parseFloat(x[col])).filter(v => !isNaN(v)).sort((a, b) => a - b);
-                            r[col] = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
-                            filled++;
-                            issues.push({ tipo: 'Valor vacío', campo: col, original: 'NULL', accion: `Mediana: ${r[col]}` });
-                        }
-                    });
-                    cols.categorical.forEach(col => {
-                        if (r[col] === null || r[col] === undefined || r[col] === '') {
-                            r[col] = 'No especificado';
-                            filled++;
-                            issues.push({ tipo: 'Valor vacío', campo: col, original: 'NULL', accion: '"No especificado"' });
-                        }
-                    });
-                    return r;
-                });
-                return { data: cleaned, msg: `${filled} valores vacíos completados` };
-            },
-        },
-        {
-            id: 'outliers', label: 'Corregir valores extremos', icon: '📐',
-            fn: async (d) => {
-                let fixed = 0;
-                let cleaned = d.map(r => ({ ...r }));
-                cols.numeric.forEach(col => {
-                    const vals = d.map(r => parseFloat(r[col])).filter(v => !isNaN(v)).sort((a, b) => a - b);
-                    if (vals.length < 4) return;
-                    const q1 = vals[Math.floor(vals.length * 0.25)];
-                    const q3 = vals[Math.floor(vals.length * 0.75)];
-                    const iqr = q3 - q1;
-                    const lo = q1 - 1.5 * iqr, hi = q3 + 1.5 * iqr;
-                    cleaned = cleaned.map(row => {
-                        const v = parseFloat(row[col]);
-                        if (!isNaN(v) && (v < lo || v > hi)) {
-                            const c = +(v < lo ? lo : hi).toFixed(2);
-                            issues.push({ tipo: 'Outlier', campo: col, original: v, accion: `Corregido a ${c}` });
-                            fixed++;
-                            return { ...row, [col]: c };
-                        }
-                        return row;
-                    });
-                });
-                return { data: cleaned, msg: `${fixed} valores extremos corregidos (método IQR)` };
-            },
-        },
-        {
-            id: 'types', label: 'Normalizar tipos y formatos', icon: '🔤',
-            fn: async (d) => {
-                let normalized = 0;
-                const cleaned = d.map(row => {
-                    const r = { ...row };
-                    cols.numeric.forEach(col => { if (typeof r[col] === 'string') { r[col] = parseFloat(r[col]) || 0; normalized++; } });
-                    cols.categorical.forEach(col => { if (typeof r[col] === 'string') { const t = r[col].trim(); if (t !== r[col]) normalized++; r[col] = t; } });
-                    return r;
-                });
-                return { data: cleaned, msg: `${normalized} valores normalizados` };
-            },
-        },
-        {
-            id: 'score', label: 'Calcular puntuación de calidad', icon: '✅',
-            fn: async (d) => {
-                const totalCells = d.length * cols.all.length;
-                let remaining = 0;
-                cols.all.forEach(col => { remaining += d.filter(r => r[col] === null || r[col] === undefined || r[col] === '').length; });
-                const completeness = Math.max(0, 100 - (remaining / totalCells * 100));
-                const uniqueness = Math.min(100, (new Set(d.map(r => JSON.stringify(r))).size / d.length) * 100);
-                const score = Math.round(completeness * 0.6 + uniqueness * 0.4);
-                return { data: d, msg: `Puntuación de calidad: ${score}/100`, score };
-            },
-        },
+    const stepLabels = [
+        'Auditoría inicial',
+        'Eliminar duplicados',
+        'Completar valores vacíos',
+        'Corregir valores extremos',
+        'Normalizar tipos y formatos',
+        'Calcular puntuación de calidad',
     ];
 
-    let current = rawData;
-    let finalScore = 0;
-    for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        if (onStep) onStep(i, 'running', step.label);
-        await sleep(300 + Math.random() * 300);
-        const result = await step.fn(current);
-        current = result.data;
-        if (result.score !== undefined) finalScore = result.score;
-        if (onStep) onStep(i, 'done', step.label, result.msg);
-    }
-    return { cleanData: current, issues, score: finalScore, steps: steps.length };
+    stepLabels.forEach((label, i) => {
+        if (onStep) onStep(i, 'running', label);
+    });
+
+    const result = await postAnalytics('/analytics/clean', { data: rawData });
+
+    stepLabels.forEach((label, i) => {
+        const msg = i === stepLabels.length - 1
+            ? `Puntuación de calidad: ${result.score}/100`
+            : 'Procesado en backend';
+        if (onStep) onStep(i, 'done', label, msg);
+    });
+
+    return result;
 }
 
 // ── GEMINI ───────────────────────────────────────────────
@@ -357,33 +236,9 @@ function createScatterChart(canvasId, points, xLabel, yLabel) {
     });
 }
 
-// ── PREDICTION ───────────────────────────────────────────
-function simplePrediction(values, steps = 10) {
-    const n = values.length;
-    if (n < 3) return { predictions: [], confidence: [] };
-    // Linear regression
-    const xs = Array.from({ length: n }, (_, i) => i);
-    const xMean = xs.reduce((a, b) => a + b, 0) / n;
-    const yMean = values.reduce((a, b) => a + b, 0) / n;
-    const num = xs.reduce((acc, x, i) => acc + (x - xMean) * (values[i] - yMean), 0);
-    const den = xs.reduce((acc, x) => acc + Math.pow(x - xMean, 2), 0);
-    const slope = den !== 0 ? num / den : 0;
-    const intercept = yMean - slope * xMean;
-    // Residual std for confidence band
-    const residuals = values.map((v, i) => v - (slope * i + intercept));
-    const residStd = Math.sqrt(residuals.map(r => r * r).reduce((a, b) => a + b, 0) / n);
-    // Moving avg smoothing on last window
-    const windowSize = Math.min(5, Math.floor(n / 3));
-    const lastSmooth = values.slice(-windowSize).reduce((a, b) => a + b, 0) / windowSize;
-    const trendFromSmooth = lastSmooth - (slope * (n - windowSize / 2) + intercept);
-    const predictions = Array.from({ length: steps }, (_, i) => {
-        const x = n + i;
-        const trend = slope * x + intercept;
-        const seasonal = Math.sin(i * 0.6) * residStd * 0.2;
-        return +(trend + trendFromSmooth * 0.3 + seasonal).toFixed(2);
-    });
-    const confidence = predictions.map(p => ({ low: +(p - residStd).toFixed(2), high: +(p + residStd).toFixed(2) }));
-    return { predictions, confidence, slope, intercept, residStd, direction: slope > 0.01 ? 'alza' : slope < -0.01 ? 'baja' : 'estable' };
+// ── PREDICTION (Backend) ─────────────────────────────────
+async function predictSeries(values, steps = 10) {
+    return await postAnalytics('/analytics/predict', { values, steps });
 }
 
 // ── UTILS ────────────────────────────────────────────────
@@ -458,15 +313,18 @@ function autoVisualize(cleanData, analysis, section) {
         const numCol = cols.numeric[0];
         const vals = cleanData.map(r => parseFloat(r[numCol])).filter(v => !isNaN(v)).slice(0, 60);
         const labels = vals.map((_, i) => `#${i + 1}`);
-        const pred = simplePrediction(vals, 15);
-        const predLabels = pred.predictions.map((_, i) => `P${i + 1}`);
-        createLineChart('chart-line',
-            [...labels.slice(-30), ...predLabels],
-            [
-                { label: 'Datos históricos', data: [...vals.slice(-30), ...new Array(15).fill(null)], borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,0.08)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
-                { label: 'Predicción', data: [...new Array(Math.min(30, vals.length)).fill(null), ...pred.predictions], borderColor: '#b45309', borderDash: [6, 3], fill: false, tension: 0.4, pointRadius: 3, borderWidth: 2 },
-            ]
-        );
+        createLineChart('chart-line', labels, [
+            {
+                label: 'Datos históricos',
+                data: vals,
+                borderColor: '#1a56db',
+                backgroundColor: 'rgba(26,86,219,0.08)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2,
+            },
+        ]);
     }
 
     // Chart 3: Donut — category distribution
