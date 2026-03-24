@@ -8,10 +8,29 @@ class SessionManager:
         self._ttl = timedelta(minutes=ttl_minutes)
         self._lock = threading.Lock()
 
-    def create(self, session_id: str, system_context: str) -> None:
+    def create(
+        self,
+        session_id: str,
+        agent_type: str = "navigation",
+        system_context: str = "",
+        categoria: str = "",
+        conclusiones: str = "",
+    ) -> None:
+        """
+        Crea una sesión nueva.
+
+        agent_type: "navigation" para el agente del index,
+                    "specialist" para el agente de sección.
+        categoria:  nombre de la sección (solo para specialist).
+        conclusiones: output del pipeline de análisis (solo para specialist).
+        system_context: campo legacy, mantenido por compatibilidad.
+        """
         with self._lock:
             self._sessions[session_id] = {
+                "agent_type": agent_type,
                 "system_context": system_context,
+                "categoria": categoria,
+                "conclusiones": conclusiones,
                 "history": [],
                 "created_at": datetime.utcnow(),
             }
@@ -41,5 +60,5 @@ class SessionManager:
             self._sessions.pop(session_id, None)
 
 
-# Singleton — una sola instancia compartida por toda la app
+# Singleton
 session_manager = SessionManager()

@@ -1,6 +1,5 @@
 import uuid
 from fastapi import APIRouter, HTTPException
-
 from app.schemas.chat import StartSessionRequest, MessageRequest, ChatResponse, DeleteResponse
 from app.services.session import session_manager
 from app.services.gemini import gemini_service
@@ -10,9 +9,28 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("/session", response_model=ChatResponse)
 async def start_session(req: StartSessionRequest):
-    """Crea una sesión nueva con el contexto inicial y obtiene la presentación del modelo."""
+    """
+    Crea una sesión nueva y obtiene la presentación del agente.
+
+    Para el agente de navegación (index):
+        { "agent_type": "navigation" }
+
+    Para el agente especialista (sección):
+        {
+          "agent_type": "specialist",
+          "categoria": "movilidad",
+          "conclusiones": "...output del pipeline..."
+        }
+    """
     session_id = str(uuid.uuid4())
-    session_manager.create(session_id, system_context=req.context)
+
+    session_manager.create(
+        session_id=session_id,
+        agent_type=req.agent_type,
+        system_context=req.context or "",
+        categoria=req.categoria or "",
+        conclusiones=req.conclusiones or "",
+    )
 
     session_data = session_manager.get(session_id)
     reply = await gemini_service.send(session_data, user_message=None)
@@ -28,7 +46,6 @@ async def send_message(req: MessageRequest):
 
     session_data = session_manager.get(req.session_id)
     reply = await gemini_service.send(session_data, user_message=req.message)
-
     session_manager.append(req.session_id, user_msg=req.message, assistant_msg=reply)
 
     return ChatResponse(session_id=req.session_id, reply=reply)
@@ -36,6 +53,6 @@ async def send_message(req: MessageRequest):
 
 @router.delete("/session/{session_id}", response_model=DeleteResponse)
 async def end_session(session_id: str):
-    """Elimina la sesión. Llamar desde el front en beforeunload (best-effort)."""
+    """Elimina la sesión."""
     session_manager.delete(session_id)
     return DeleteResponse(detail="Sesión eliminada.")

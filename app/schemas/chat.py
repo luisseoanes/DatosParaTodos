@@ -1,8 +1,14 @@
+from typing import Literal, Optional
 from pydantic import BaseModel
 
 
 class StartSessionRequest(BaseModel):
-    context: str
+    agent_type: Literal["navigation", "specialist"] = "navigation"
+    # Solo para specialist:
+    categoria: Optional[str] = None
+    conclusiones: Optional[str] = None
+    # Legacy, mantenido por compatibilidad:
+    context: Optional[str] = None
 
 
 class MessageRequest(BaseModel):
