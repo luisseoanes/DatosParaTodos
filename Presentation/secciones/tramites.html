@@ -704,22 +704,6 @@
                 <!-- ============================================================
   INSTRUCCIONES: Aplicar en cada sección (ej: movilidad.html)
 
-  1. En el <head>, después de utils.js:
-     <script src="../js/chat.js"></script>
-
-  2. Reemplazar el bloque completo <!-- ══ STEP 4: CONCLUSIONES IA ══ -->
-                con el bloque de abajo.
-
-                3. En la función generateConclusions() ya no se usa — se puede eliminar o dejar.
-                El chat ahora se inicia automáticamente cuando el pipeline termina.
-
-                4. En la función runPipeline(), al final (después del showToast de éxito),
-                agregar la llamada:
-                _launchSpecialistAgent();
-
-                Esa función lee PAGE.geminiResponse (que ahora viene del pipeline
-                y no de Gemini directo) o construye las conclusiones del análisis.
-                ============================================================ -->
 
                 <!-- ══════════════ STEP 4: AGENTE ESPECIALISTA ══════════════ -->
                 <div class="step-panel" id="tab-4">
