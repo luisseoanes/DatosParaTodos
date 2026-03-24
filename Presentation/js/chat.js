@@ -3,7 +3,7 @@
 //  Llama al backend FastAPI para comunicarse con Gemini.
 // ============================================================
 
-const CHAT_API = 'http://localhost:8000/chat';
+const CHAT_API = (typeof CONFIG !== 'undefined' ? CONFIG.backendApiBase : 'https://datosparatodos-production.up.railway.app') + '/chat';
 
 const ChatWidget = (() => {
     let sessionId = null;
