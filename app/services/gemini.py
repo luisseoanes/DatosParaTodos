@@ -104,7 +104,7 @@ class GeminiService:
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
             thinking_config=types.ThinkingConfig(
-                thinking_level="HIGH",
+                
             ),
             tools=[
                 types.Tool(google_search=types.GoogleSearch()),
