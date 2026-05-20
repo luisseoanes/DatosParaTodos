@@ -4,8 +4,8 @@
 //  + GridSearchCV + Pipeline final
 // ============================================================
 
-const MODELING_API = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase)
-    ? CONFIG.backendApiBase : 'https://datosparatodos-production.up.railway.app';
+const MODELING_API = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase !== undefined)
+    ? CONFIG.backendApiBase : '';
 
 // ── Estado global del modelado ──────────────────────────────
 const MODELING_STATE = {
@@ -558,7 +558,7 @@ function renderRadarChart(r, color) {
 // ============================================================
 const BusinessUnderstanding = (() => {
     const API = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase)
-        ? CONFIG.backendApiBase : 'https://datosparatodos-production.up.railway.app';
+        ? CONFIG.backendApiBase : '';
 
     let _state = { pregunta: '', objetivo: '', target_sugerido: '', kpis: [], contexto: '', confirmed: false };
     let _generating = false;

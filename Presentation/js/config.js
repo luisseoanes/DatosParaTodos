@@ -8,7 +8,10 @@ const CONFIG = {
     siteName: 'DatosParaTodos',
     siteTagline: 'Plataforma de Datos Abiertos de Medellín',
     version: '1.2.0',
-    backendApiBase: 'http://localhost:8000',
+    // En local apunta a :8000; en producción usa rutas relativas (mismo origen)
+    backendApiBase: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8000'
+        : '',
     // Gemini API — el usuario ingresa su key en la UI (campo #geminiKey en cada sección)
     geminiModel: 'gemini-2.0-flash',
     geminiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',

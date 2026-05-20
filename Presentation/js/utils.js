@@ -65,9 +65,9 @@ function generateFallback(dataset, n) {
     return rows;
 }
 
-const ANALYTICS_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase)
+const ANALYTICS_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.backendApiBase !== undefined)
     ? CONFIG.backendApiBase
-    : 'https://datosparatodos-production.up.railway.app';
+    : '';
 
 async function postAnalytics(path, payload) {
     const res = await fetch(`${ANALYTICS_API_BASE}${path}`, {
