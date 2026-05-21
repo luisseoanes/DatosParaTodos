@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.0...v1.0.1) (2026-05-21)
+
+
+### Bug Fixes
+
+* simplify nixpacks — let auto-detect handle pip install ([78aeeee](https://github.com/luisseoanes/DatosParaTodos/commit/78aeeee5061d8ce8b3ac2088502e840065647451))
+
 # 1.0.0 (2026-05-20)
 
 
