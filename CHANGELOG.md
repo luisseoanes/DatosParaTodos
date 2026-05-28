@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.4...v1.0.5) (2026-05-28)
+
+
+### Bug Fixes
+
+* degradar a siguiente modelo Gemini en 503 (modelo saturado), no solo 429/404 ([1666c3c](https://github.com/luisseoanes/DatosParaTodos/commit/1666c3c30eaf8e1a580a92291e546348f3089b30))
+
 ## [1.0.4](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.3...v1.0.4) (2026-05-28)
 
 
