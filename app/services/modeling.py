@@ -603,11 +603,11 @@ class ModelingService:
                 "clf__max_depth": [5, 10, None],
             },
             "Gradient Boosting (Ensamble)": {
-                "clf__n_estimators": [50, 100, 200],
+                "clf__n_estimators": [50, 100],
                 "clf__learning_rate": [0.05, 0.1, 0.2],
             },
             "AdaBoost (Ensamble)": {
-                "clf__n_estimators": [50, 100, 200],
+                "clf__n_estimators": [50, 100],
                 "clf__learning_rate": [0.5, 1.0],
             },
         }
@@ -702,12 +702,12 @@ class ModelingService:
                             random_state=42)
                     elif _name == "Gradient Boosting (Ensamble)":
                         clf = GradientBoostingClassifier(
-                            n_estimators=trial.suggest_int("n_estimators", 10, 200),
+                            n_estimators=trial.suggest_int("n_estimators", 10, 120),
                             learning_rate=trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
                             random_state=42)
                     elif _name == "AdaBoost (Ensamble)":
                         clf = AdaBoostClassifier(
-                            n_estimators=trial.suggest_int("n_estimators", 10, 200),
+                            n_estimators=trial.suggest_int("n_estimators", 10, 120),
                             learning_rate=trial.suggest_float("learning_rate", 0.01, 1.0, log=True),
                             random_state=42)
                     else:
@@ -728,7 +728,7 @@ class ModelingService:
                     direction="maximize",
                     sampler=optuna.samplers.TPESampler(seed=42)
                 )
-                study.optimize(make_objective(), n_trials=5, timeout=60)
+                study.optimize(make_objective(), n_trials=5, timeout=20)
 
                 best_params = study.best_params
                 best_cv_score = study.best_value
