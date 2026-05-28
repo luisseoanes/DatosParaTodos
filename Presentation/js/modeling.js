@@ -305,7 +305,7 @@ async function executeInteractivePrediction() {
     resultEl.innerHTML = '';
 
     try {
-        const res = await fetch(`${MODELING_API}/analytics/predict`, {
+        const res = await fetch(`${MODELING_API}/analytics/predict-model`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ input_data }),

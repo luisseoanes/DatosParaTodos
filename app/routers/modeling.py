@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.modeling import (
@@ -54,11 +56,15 @@ async def detect_target(req: DetectTargetRequest):
 @router.post("/model", response_model=ModelingResponse)
 async def run_modeling(req: ModelingRequest):
     """Ejecuta el pipeline completo de modelado CRISP-DM."""
-    result = modeling_service.run_full_pipeline(req.data, req.target_col)
+    # El pipeline es pesado y síncrono; se ejecuta en un hilo para no
+    # bloquear el event loop (con --workers 1 congelaría toda la app).
+    result = await asyncio.to_thread(
+        modeling_service.run_full_pipeline, req.data, req.target_col
+    )
     return ModelingResponse(**result)
 
 
-@router.post("/predict", response_model=PredictionResponse)
+@router.post("/predict-model", response_model=PredictionResponse)
 async def predict(req: PredictionRequest):
     """Realiza una predicción usando el modelo entrenado en la sesión."""
     result = modeling_service.predict(req.input_data)

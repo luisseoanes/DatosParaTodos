@@ -658,6 +658,7 @@ class ModelingService:
         best_overall_weight = 99
         best_overall_name   = ""
         best_overall_pipeline = None  # Pipeline completo (pre + clf)
+        best_overall_test_acc = 0.0   # accuracy real sobre el test (30%)
 
         import optuna
         optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -725,7 +726,7 @@ class ModelingService:
                     direction="maximize",
                     sampler=optuna.samplers.TPESampler(seed=42)
                 )
-                study.optimize(make_objective(), n_trials=10, timeout=60)
+                study.optimize(make_objective(), n_trials=5, timeout=60)
 
                 best_params = study.best_params
                 best_cv_score = study.best_value
@@ -792,6 +793,7 @@ class ModelingService:
                     best_overall_weight   = weight
                     best_overall_name     = name
                     best_overall_pipeline = best_pipe
+                    best_overall_test_acc = test_acc
 
             except Exception:
                 pass
@@ -833,7 +835,7 @@ class ModelingService:
 
             results["best_model"] = {
                 "name": best_overall_name,
-                "final_test_accuracy": _round(best_overall_score),
+                "final_test_accuracy": _round(best_overall_test_acc),
                 "pipeline_size_kb": _round(len(buffer.getvalue()) / 1024, 1),
                 "pipeline_steps": pre_steps + [best_overall_name],
             }
