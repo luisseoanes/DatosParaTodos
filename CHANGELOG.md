@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.1...v1.0.2) (2026-05-28)
+
+
+### Bug Fixes
+
+* separar ruta de predicción de modelo y desbloquear event loop en modelado ([365be4f](https://github.com/luisseoanes/DatosParaTodos/commit/365be4f78816e8fc8838fcda1896f2b44f66a03f))
+
 ## [1.0.1](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.0...v1.0.1) (2026-05-21)
 
 
