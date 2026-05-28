@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.3...v1.0.4) (2026-05-28)
+
+
+### Performance Improvements
+
+* acotar Optuna/GridSearch en ensambles lentos para tiempo estable ([66bdf76](https://github.com/luisseoanes/DatosParaTodos/commit/66bdf767ed3fc076ae72dfeef59ba3f37bd4945b))
+
 ## [1.0.3](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.2...v1.0.3) (2026-05-28)
 
 
