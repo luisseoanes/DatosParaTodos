@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.2...v1.0.3) (2026-05-28)
+
+
+### Performance Improvements
+
+* paralelizar el cross_validate principal de los 7 modelos (n_jobs=-1) ([867cb30](https://github.com/luisseoanes/DatosParaTodos/commit/867cb30bd7d3556f599d0d82e9177270fe4b3631))
+
 ## [1.0.2](https://github.com/luisseoanes/DatosParaTodos/compare/v1.0.1...v1.0.2) (2026-05-28)
 
 
