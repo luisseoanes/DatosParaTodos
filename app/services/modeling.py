@@ -454,9 +454,11 @@ class ModelingService:
             error_msg = None
             try:
                 # error_score=np.nan: en vez de crashear, asigna NaN al fold que falla
+                # n_jobs=-1 paraleliza los folds entre los vCPU. Los estimadores
+                # se dejan en n_jobs=1 para evitar sobre-suscripción (anidamiento).
                 cv_res = cross_validate(
                     pipe, X_train_raw, y_train, cv=cv,
-                    scoring=["accuracy"], error_score=np.nan
+                    scoring=["accuracy"], error_score=np.nan, n_jobs=-1
                 )
                 raw_scores = cv_res["test_accuracy"]
                 # Filtrar NaN — folds que fallaron
