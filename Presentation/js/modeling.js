@@ -888,6 +888,8 @@ const BusinessUnderstanding = (() => {
             console.error('[BU] generate error:', e);
             if (e.status === 429 || (e.message && e.message.includes('429'))) {
                 _setStatusChip('⏳ Cuota agotada — espera unos segundos y reintenta', '#b45309');
+            } else if (e.status === 503 || (e.message && (e.message.includes('503') || e.message.includes('saturad')))) {
+                _setStatusChip('⏳ Modelos saturados — reintenta en unos segundos', '#b45309');
             } else {
                 _setStatusChip('Error al generar — revisa la conexión', '#dc2626');
             }

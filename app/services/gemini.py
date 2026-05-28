@@ -81,6 +81,21 @@ def _model_supports_search(model: str) -> bool:
     """Google Search grounding solo en flash completo y pro."""
     return _model_supports_thinking(model)
 
+def _is_retryable_with_next_model(e: Exception) -> bool:
+    """True si conviene degradar al siguiente modelo en lugar de propagar el error.
+
+    Incluye cuota agotada (429), modelo inexistente (404) y, crucialmente,
+    sobrecarga temporal del modelo (503 UNAVAILABLE / 'high demand' / 'overloaded'),
+    que es frecuente en los modelos preview y antes propagaba como 500.
+    """
+    s = str(e)
+    markers = (
+        "429", "RESOURCE_EXHAUSTED",
+        "404", "NOT_FOUND",
+        "503", "UNAVAILABLE", "overloaded", "high demand",
+    )
+    return any(m in s for m in markers)
+
 # ---------------------------------------------------------------------------
 # Servicio
 # ---------------------------------------------------------------------------
@@ -150,7 +165,7 @@ class GeminiService:
                 attempt_config = types.GenerateContentConfig(**ac_kwargs)
                 return await self._call(attempt_model, contents, attempt_config)
             except Exception as e:
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "404" in str(e) or "NOT_FOUND" in str(e):
+                if _is_retryable_with_next_model(e):
                     continue
                 raise
 
@@ -194,7 +209,7 @@ class GeminiService:
                 return json.loads(text)
             except Exception as e:
                 last_err = e
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "404" in str(e) or "NOT_FOUND" in str(e):
+                if _is_retryable_with_next_model(e):
                     continue  # probar siguiente modelo
                 raise  # error distinto → propagar
 

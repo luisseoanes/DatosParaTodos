@@ -101,4 +101,9 @@ async def generate_business_understanding(req: BusinessUnderstandingRequest):
                 status_code=429,
                 detail=f"Cuota de Gemini agotada. Reintenta en {retry_s} segundos.",
             )
+        if "503" in err_str or "UNAVAILABLE" in err_str or "overloaded" in err_str or "high demand" in err_str:
+            raise HTTPException(
+                status_code=503,
+                detail="Los modelos de Gemini están saturados temporalmente. Reintenta en unos segundos.",
+            )
         raise HTTPException(status_code=500, detail=f"Error generando comprensión del negocio: {err_str}")
